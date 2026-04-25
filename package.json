@@ -1,0 +1,31 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "VSGRPS Agile Workspace Backend",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "init-db": "node db-init.js"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^9.2.0",
+    "@fastify/cors": "^8.3.0",
+    "@fastify/multipart": "^7.7.3",
+    "@fastify/rate-limit": "^9.1.0",
+    "@fastify/session": "^10.1.1",
+    "axios": "^1.15.0",
+    "bcrypt": "^5.1.1",
+    "crypto": "^1.0.1",
+    "dotenv": "^17.4.2",
+    "fastify": "^4.24.3",
+    "nodemailer": "^8.0.6",
+    "open-graph-scraper": "^6.3.2",
+    "pg": "^8.11.3",
+    "uuid": "^9.0.1",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

@@ -1,6 +1,7 @@
 const pool = require('../db');
 const authenticate = require('../middleware/authenticate');
 const { authorize } = require('../middleware/authorize');
+const { sendPushNotification } = require('../utils/push');
 
 async function meetingRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticate);
@@ -57,6 +58,13 @@ async function meetingRoutes(fastify, options) {
             'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
             [req.session.companyId, userId, 'meeting_added', `You have been added to meeting: ${title}`, `/meetings/${meeting.id}`]
           );
+
+          // Send Push Notification
+          await sendPushNotification(userId, {
+            title: 'New Meeting Invitation',
+            body: `You have been added to: ${title}`,
+            url: `/meetings/${meeting.id}`
+          });
         }
       }
 

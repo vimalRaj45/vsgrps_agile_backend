@@ -68,9 +68,8 @@ async function authRoutes(fastify, options) {
       }
     }
   }, async (req, reply) => {
-    const { email, password, rememberMe } = req.body;
+    const { email, password, rememberMe, companyId } = req.body;
     
-    // Fix 8: Input Validation
     if (!email || !password || !email.includes('@')) {
       return reply.code(400).send({ error: 'Valid email and password are required.' });
     }
@@ -81,17 +80,44 @@ async function authRoutes(fastify, options) {
       LEFT JOIN companies c ON u.company_id = c.id 
       WHERE u.email = $1
     `, [email]);
+
     if (rows.length === 0) return reply.code(401).send({ error: 'Invalid credentials.' });
 
-    const user = rows[0];
+    // Filter matching users by password
+    const matchingUsers = [];
+    for (const u of rows) {
+      const match = await bcrypt.compare(password, u.password_hash);
+      if (match) {
+        matchingUsers.push(u);
+      }
+    }
+
+    if (matchingUsers.length === 0) {
+      return reply.code(401).send({ error: 'Invalid credentials.' });
+    }
+
+    let user;
+    if (matchingUsers.length > 1) {
+      if (companyId) {
+        user = matchingUsers.find(u => u.company_id === companyId);
+        if (!user) return reply.code(400).send({ error: 'Invalid organization selected.' });
+      } else {
+        // Return list of organizations for user to choose
+        const orgs = matchingUsers.map(u => ({
+          companyId: u.company_id,
+          companyName: u.company_name,
+          role: u.role
+        }));
+        return { multipleOrgs: true, orgs };
+      }
+    } else {
+      user = matchingUsers[0];
+    }
 
     // Check verification
     if (!user.is_verified) {
       return reply.code(403).send({ error: 'Account not verified. Please check your inbox for the activation link.' });
     }
-
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return reply.code(401).send({ error: 'Invalid credentials.' });
 
     req.session.userId = user.id;
     req.session.companyId = user.company_id;

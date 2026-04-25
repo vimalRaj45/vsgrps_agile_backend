@@ -79,10 +79,29 @@ async function fileRoutes(fastify, options) {
       );
 
       // Audit log
-      await pool.query(
-        'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.session.companyId, req.session.userId, 'file', rows[0].id, 'uploaded', JSON.stringify({ filename: data.filename, size: fileSize })]
-      );
+    await pool.query(
+      'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
+      [req.session.companyId, req.session.userId, 'file', rows[0].id, 'uploaded', JSON.stringify({ filename: data.filename, size: fileSize })]
+    );
+
+    // Notifications for shared users
+    if (is_private && shared_with && shared_with.length > 0) {
+      const { sendPushNotification } = require('../utils/push');
+      const message = `${req.session.userName} shared a file with you: ${data.filename}`;
+      for (const uid of shared_with) {
+        if (uid === req.session.userId) continue;
+        await pool.query(
+          'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
+          [req.session.companyId, uid, 'file_shared', message, `/files?id=${rows[0].id}`]
+        );
+        await sendPushNotification(uid, {
+          title: 'File Shared',
+          body: message,
+          icon: '/logo192.png',
+          data: { url: `/files` }
+        });
+      }
+    }
 
       return rows[0];
     } catch (err) {
@@ -178,6 +197,25 @@ async function fileRoutes(fastify, options) {
         'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
         [req.session.companyId, req.session.userId, 'link', rows[0].id, 'created', JSON.stringify({ url, title })]
       );
+
+      // Notifications for shared users
+      if (is_private && shared_with && shared_with.length > 0) {
+        const { sendPushNotification } = require('../utils/push');
+        const message = `${req.session.userName} shared a link with you: ${title}`;
+        for (const uid of shared_with) {
+          if (uid === req.session.userId) continue;
+          await pool.query(
+            'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
+            [req.session.companyId, uid, 'link_shared', message, `/files`]
+          );
+          await sendPushNotification(uid, {
+            title: 'Link Shared',
+            body: message,
+            icon: '/logo192.png',
+            data: { url: `/files` }
+          });
+        }
+      }
 
       return rows[0];
     } catch (err) {

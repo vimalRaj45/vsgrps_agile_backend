@@ -87,11 +87,21 @@ async function taskRoutes(fastify, options) {
     );
 
     // Notification if assigned
-    if (assigned_to) {
+    if (assigned_to && assigned_to !== req.session.userId) {
+      const { sendPushNotification } = require('../utils/push');
+      const message = `${req.session.userName} assigned you a task: ${title}`;
+      
       await pool.query(
         'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
-        [req.session.companyId, assigned_to, 'task_assigned', `You have been assigned: ${title}`, `/tasks?id=${rows[0].id}`]
+        [req.session.companyId, assigned_to, 'task_assigned', message, `/tasks?id=${rows[0].id}`]
       );
+
+      await sendPushNotification(assigned_to, {
+        title: 'New Task Assigned',
+        body: message,
+        icon: '/logo192.png',
+        data: { url: `/tasks?id=${rows[0].id}` }
+      });
     }
 
     return rows[0];
@@ -188,14 +198,16 @@ async function taskRoutes(fastify, options) {
         const userRes = await pool.query("SELECT id FROM users WHERE REPLACE(name, ' ', '_') = $1 AND company_id = $2", [username, req.session.companyId]);
         if (userRes.rows.length > 0) {
           const mentionedId = userRes.rows[0].id;
+          const message = `${req.session.userName} mentioned you in a comment.`;
+          
           await pool.query(
             'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
-            [req.session.companyId, mentionedId, 'mention', `${req.session.userRole} mentioned you in a comment.`, `/tasks?id=${id}`]
+            [req.session.companyId, mentionedId, 'mention', message, `/tasks?id=${id}`]
           );
           
           await sendPushNotification(mentionedId, {
             title: 'New Mention',
-            body: `${req.session.userRole} mentioned you in a comment.`,
+            body: message,
             icon: '/logo192.png',
             data: { url: `/tasks?id=${id}` }
           });

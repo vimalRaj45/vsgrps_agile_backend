@@ -96,6 +96,7 @@ async function authRoutes(fastify, options) {
     req.session.userId = user.id;
     req.session.companyId = user.company_id;
     req.session.userRole = user.role;
+    req.session.userName = user.name;
 
     // Handle Remember Me
     if (rememberMe) {

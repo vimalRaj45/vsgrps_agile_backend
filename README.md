@@ -1,9 +1,9 @@
-# VSGRPS Agile Workspace 🚀
+# Sprintora Workspace 🚀
 
 A modern, secure, and multi-tenant SaaS platform designed for high-performance agile project management and organizational governance.
 
 ## 🌟 Project Overview
-VSGRPS Agile is a comprehensive workspace solution that combines agile project tracking, team collaboration, and administrative governance into a single, high-fidelity platform. Built with a focus on security, scalability, and premium user experience, it allows organizations to manage projects, tasks, meetings, and shared resources with precision.
+Sprintora is a comprehensive workspace solution that combines agile project tracking, team collaboration, and administrative governance into a single, high-fidelity platform. Built with a focus on security, scalability, and premium user experience, it allows organizations to manage projects, tasks, meetings, and shared resources with precision.
 
 ## 💎 Key Features
 
@@ -68,8 +68,8 @@ VSGRPS Agile is a comprehensive workspace solution that combines agile project t
 
 ## 📂 Project Repositories
 
-- **Backend**: [https://github.com/vimalRaj45/vsgrps_agile_backend](https://github.com/vimalRaj45/vsgrps_agile_backend)
-- **Frontend**: [https://github.com/vimalRaj45/vsgrps_agile_frontend](https://github.com/vimalRaj45/vsgrps_agile_frontend)
+- **Backend**: [https://github.com/vimalRaj45/Sprintora_agile_backend](https://github.com/vimalRaj45/Sprintora_agile_backend)
+- **Frontend**: [https://github.com/vimalRaj45/Sprintora_agile_frontend](https://github.com/vimalRaj45/Sprintora_agile_frontend)
 
 ## 🚀 Getting Started
 
@@ -83,8 +83,8 @@ VSGRPS Agile is a comprehensive workspace solution that combines agile project t
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/vimalRaj45/vsgrps_agile_backend
-   git clone https://github.com/vimalRaj45/vsgrps_agile_frontend
+   git clone https://github.com/vimalRaj45/Sprintora_agile_backend
+   git clone https://github.com/vimalRaj45/Sprintora_agile_frontend
    ```
 
 2. **Backend Setup**:
@@ -111,4 +111,4 @@ The project follows a **Premium Dark Mode** aesthetic by default, featuring:
 - **Mobile First**: Fully responsive layout optimized for touch targets and small screens.
 
 ---
-© 2026 VSGRPS Agile. Managed and developed by Antigravity AI.
+© 2026 Sprintora. Managed and developed by Antigravity AI.

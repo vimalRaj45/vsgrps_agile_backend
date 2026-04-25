@@ -146,21 +146,21 @@ async function authRoutes(fastify, options) {
 
     const { rows } = await pool.query('SELECT id, name, email FROM users WHERE email = $1', [email]);
 
-    // Fix 7: Prevent User Enumeration
-    if (rows.length > 0) {
-      const user = rows[0];
-      const token = crypto.randomBytes(32).toString('hex');
-      const expiry = new Date(Date.now() + 3600000); // 1 hour
-
-      await pool.query(
-        'UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3',
-        [token, expiry, user.id]
-      );
-      await sendResetEmail(req, email, user.name, token);
+    if (rows.length === 0) {
+      return reply.code(404).send({ error: 'No account found with this email address.' });
     }
 
-    // Always return same message
-    return { message: 'If an account exists with this email, a reset link has been sent.' };
+    const user = rows[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiry = new Date(Date.now() + 3600000); // 1 hour
+
+    await pool.query(
+      'UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3',
+      [token, expiry, user.id]
+    );
+    await sendResetEmail(req, email, user.name, token);
+
+    return { message: 'Password reset link has been sent to your email.' };
   });
 
   // Reset Password

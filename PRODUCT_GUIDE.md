@@ -1,6 +1,6 @@
-# VSGRPS Agile Workspace - Product Guide 📘
+# Sprintora Workspace - Product Guide 📘
 
-Welcome to the **VSGRPS Agile Workspace**. This guide provides a comprehensive walkthrough of the platform's features, workflows, and administrative controls.
+Welcome to the **Sprintora Workspace**. This guide provides a comprehensive walkthrough of the platform's features, workflows, and administrative controls.
 
 ---
 
@@ -101,10 +101,10 @@ The AI Architect is your co-pilot for agile planning.
 
 ## 📱 7. PWA & Mobile Experience
 
-- **Installable**: Add VSGRPS Agile to your home screen via your browser's "Add to Home Screen" prompt.
+- **Installable**: Add Sprintora to your home screen via your browser's "Add to Home Screen" prompt.
 - **Responsive Design**: The entire interface is optimized for mobile, tablet, and desktop viewports.
 - **Push Notifications**: Enable notifications in your browser settings to receive real-time alerts even when the app is closed.
 
 ---
 
-© 2026 VSGRPS Agile. All rights reserved.
+© 2026 Sprintora. All rights reserved.

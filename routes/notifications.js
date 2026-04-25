@@ -24,6 +24,15 @@ async function notificationRoutes(fastify, options) {
     return rows[0];
   });
 
+  // POST /notifications/mark-all-read
+  fastify.post('/mark-all-read', async (req, reply) => {
+    await pool.query(
+      'UPDATE notifications SET read = true WHERE user_id = $1',
+      [req.session.userId]
+    );
+    return { success: true };
+  });
+
   // POST /notifications/subscribe
   fastify.post('/subscribe', async (req, reply) => {
     const { subscription } = req.body;

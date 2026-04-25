@@ -86,7 +86,17 @@ async function inviteRoutes(fastify, options) {
       [token]
     );
     if (rows.length === 0) return reply.code(404).send({ error: 'Invalid or expired invite' });
-    return rows[0];
+    
+    const invite = rows[0];
+    
+    // Check if user already exists in the system (other orgs)
+    const { rows: userRows } = await pool.query('SELECT name FROM users WHERE email = $1 LIMIT 1', [invite.email]);
+    
+    return { 
+      ...invite, 
+      userExists: userRows.length > 0,
+      existingName: userRows.length > 0 ? userRows[0].name : null
+    };
   });
 
   // POST /invite/:token/accept
@@ -102,12 +112,26 @@ async function inviteRoutes(fastify, options) {
       if (inviteRes.rows.length === 0) throw new Error('Invalid invite');
       const invite = inviteRes.rows[0];
 
-      const hash = await bcrypt.hash(password, 10);
+      let finalName = name;
+      let finalHash;
+
+      // Check if user exists in another org
+      const { rows: existingUsers } = await client.query('SELECT name, password_hash FROM users WHERE email = $1 LIMIT 1', [invite.email]);
+      
+      if (existingUsers.length > 0) {
+        // User already in system - inherit their existing profile
+        finalName = existingUsers[0].name;
+        finalHash = existingUsers[0].password_hash;
+      } else {
+        // New user - require name and password
+        if (!name || !password) throw new Error('Name and password are required for new users');
+        finalHash = await bcrypt.hash(password, 10);
+      }
 
       // Auto-verify invited users since they received the invite via email
       const userRes = await client.query(
         'INSERT INTO users (company_id, name, email, password_hash, role, invited_by, invite_accepted, is_verified) VALUES ($1, $2, $3, $4, $5, $6, TRUE, TRUE) RETURNING *',
-        [invite.company_id, name, invite.email, hash, invite.role, invite.invited_by]
+        [invite.company_id, finalName, invite.email, finalHash, invite.role, invite.invited_by]
       );
 
       await client.query('UPDATE invites SET accepted = TRUE WHERE id = $1', [invite.id]);

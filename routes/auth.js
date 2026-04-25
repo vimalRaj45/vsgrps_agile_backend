@@ -234,6 +234,13 @@ async function authRoutes(fastify, options) {
 
   // Logout
   fastify.post('/logout', async (req, reply) => {
+    const userId = req.session.userId;
+    
+    // Clear push subscriptions for this user on logout
+    if (userId) {
+      await pool.query('DELETE FROM push_subscriptions WHERE user_id = $1', [userId]);
+    }
+
     await new Promise((resolve) => {
       req.session.destroy((err) => {
         if (err) console.error('Logout error:', err);

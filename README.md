@@ -14,10 +14,12 @@ VSGRPS Agile is a comprehensive workspace solution that combines agile project t
 
 ### 📋 Agile Project Management
 - **Interactive Kanban Boards**: Real-time task tracking with priorities (Low to Critical) and statuses.
-- **Project Pining & Archiving**: Organize high-priority projects for quick access.
+- **Project Pinning & Archiving**: Organize high-priority projects for quick access.
 - **Subtask Management**: Break down complex tasks into manageable units.
 
 ### 🤝 Advanced Collaboration
+- **Real-time Notifications**: In-app notification bell and browser-native Push Notifications (PWA).
+- **Interactive Comments**: Mention teammates (@username) in comments with automated alerts.
 - **Meeting Management**: Schedule meetings, track attendees, and store interactive meeting notes.
 - **Internal Sharing**: Private file and link sharing with specific team members.
 - **Global Search**: Unified search across tasks, projects, and meetings.
@@ -44,8 +46,9 @@ VSGRPS Agile is a comprehensive workspace solution that combines agile project t
 
 ### 🛡️ Security & Audit
 - **Comprehensive Audit Logs**: Every critical action (uploads, deletions, removals) is tracked for compliance.
-- **Email Verification**: Secure registration flow powered by Nodemailer Gmail Service.
+- **Email Verification**: Secure registration flow powered by Brevo.
 - **Session Security**: Secure, HTTP-only cookie-based session management.
+- **Production Hardening**: Rate limiting, SQL injection protection, and user enumeration prevention.
 
 ## 🛠️ Tech Stack
 
@@ -61,29 +64,20 @@ VSGRPS Agile is a comprehensive workspace solution that combines agile project t
 - **Database**: PostgreSQL (Neon Serverless)
 - **AI Engine**: Groq API (Llama-3.3-70B-versatile)
 - **Authentication**: Secure Session-based Auth (fastify-session)
-- **External APIs**: Nodemailer Gmail Service, Open-Graph-Scraper
+- **External APIs**: Brevo (SMTP/Email), Open-Graph-Scraper
 
-## 📂 Project Structure
+## 📂 Project Repositories
 
-```text
-/
-├── frontend/               # React + Vite application
-│   ├── src/components/     # Reusable UI components (Performance, Health, etc.)
-│   ├── src/pages/          # Page views (Dashboard, Settings, etc.)
-│   └── src/context/        # Auth and Theme state management
-├── backend/                # Fastify server
-│   ├── routes/             # API endpoints (Auth, Dashboard, Tasks, etc.)
-│   ├── middleware/         # Auth and validation hooks
-│   └── db-init.js          # Database schema and initialization
-└── README.md               # Project documentation
-```
+- **Backend**: [https://github.com/vimalRaj45/vsgrps_agile_backend](https://github.com/vimalRaj45/vsgrps_agile_backend)
+- **Frontend**: [https://github.com/vimalRaj45/vsgrps_agile_frontend](https://github.com/vimalRaj45/vsgrps_agile_frontend)
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Node.js (v18+)
 - PostgreSQL Database
-- Gmail App Password (for Nodemailer)
+- Brevo API Key (for emails)
+- Groq API Key (for AI)
 
 ### Installation
 
@@ -97,16 +91,15 @@ VSGRPS Agile is a comprehensive workspace solution that combines agile project t
    ```bash
    cd backend
    npm install
-   # Create .env with DATABASE_URL, GMAIL_USER, GMAIL_PASS, SESSION_SECRET
-   npm run init-db  # Initialize the database schema
-   npm run dev
+   # Create .env with DATABASE_URL, GMAIL_USER, GMAIL_PASS, SESSION_SECRET, GROQ_API_KEY
+   node db-init.js  # Initialize the database schema
+   node index.js
    ```
 
 3. **Frontend Setup**:
    ```bash
    cd frontend
    npm install
-   # Configure baseURL in api/client.js
    npm run dev
    ```
 
@@ -116,14 +109,6 @@ The project follows a **Premium Dark Mode** aesthetic by default, featuring:
 - **Dynamic Gradients**: Modern blue-to-cyan accents.
 - **Micro-animations**: Smooth hover transitions and scroll reveals.
 - **Mobile First**: Fully responsive layout optimized for touch targets and small screens.
-
-## 📜 Recent Production Hardening (Final Version)
-- **Hardened RBAC (Agile Master)**: Implemented strict operational boundaries. Developers are restricted to status updates and subtasks on assigned items, while Admins/POs manage core scope and deadlines.
-- **Visual Task Timelines**: Integrated dynamic progress bars on task cards that visualize "time consumed" relative to deadlines, with color-coded urgency (Blue → Orange → Red).
-- **AI Architect v2**: Added automatic deadline estimation and bulk due-date assignment for generated tasks.
-- **Personalized Focus**: Introduced the "Your Tasks" filter to help users isolate their responsibilities with a single click.
-- **Enterprise UI Fixes**: Resolved all mobile layout regressions and runtime ReferenceErrors for a stable production-grade experience.
-- **Backups & Security**: Finalized streaming Gzip-compressed organization exports and OTP-gated administrative portals.
 
 ---
 © 2026 VSGRPS Agile. Managed and developed by Antigravity AI.

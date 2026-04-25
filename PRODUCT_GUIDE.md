@@ -1,109 +1,79 @@
 # Sprintora Workspace - Product Guide 📘
 
-Welcome to the **Sprintora Workspace**. This guide provides a comprehensive walkthrough of the platform's features, workflows, and administrative controls.
+Welcome to the **Sprintora Workspace**. This guide provides a comprehensive walkthrough of the platform's features, workflows, and administrative controls. Sprintora is an AI-native execution engine designed to eliminate project management chaos and empower high-velocity teams.
 
 ---
 
-## 🚀 1. Getting Started
+## 🚀 1. Brand Vision & The "Aurora" UI
+
+Sprintora is built on the **Aurora Design System**, a premium, high-fidelity UI framework that prioritizes focus and visual clarity.
+
+- **Unified Theme Flow**: Your choice of Light or Dark mode flows seamlessly across the entire application, including the public landing page, authentication flow, and internal workspace.
+- **Glassmorphism & Depth**: The interface uses subtle blurs, vibrant gradients, and deep layers to create a premium, state-of-the-art workspace.
+- **Geometric Precision**: Standardized `borderRadius` (24px for cards, 16px for navigation) ensures a modern, cohesive look.
+
+---
+
+## 🧭 2. Public Platform & Onboarding
+
+### Explore the Journey
+- **Our Mission**: Learn why we built Sprintora—to solve the "Jira Burnout" and let builders focus on building.
+- **Features Deep-Dive**: A comprehensive look at the AI-driven capabilities of the platform.
+- **Interactive Demo**: Watch our [System Walkthrough](https://www.youtube.com/watch?v=ti4fD2or_6s&list=RDMMBVgNoVwsb6Y&index=11) during onboarding to master the platform in minutes.
 
 ### Registration & Onboarding
-1. **Create an Organization**: The first user to register creates the "Company" entity and is automatically assigned the **Admin** role.
-2. **Email Verification**: A verification link will be sent to your email. You must verify your account before you can log in.
-3. **Invite Your Team**: Navigate to the **Team** section to send invite links to your colleagues.
-
-### Authentication
-- **Secure Sessions**: The platform uses HTTP-only, secure session cookies.
-- **Remember Me**: Check this during login to keep your session active for 30 days.
+1. **Create an Organization**: The first user creates the "Company" and becomes the **Admin**.
+2. **AI-Guided Tour**: A 5-step interactive onboarding process reveals the "Hidden AI Features" waiting inside your workspace.
+3. **Invite Your Team**: Generate secure invite links to bring your colleagues into the fold.
 
 ---
 
-## 📋 2. Agile Project Management
+## 🤖 3. AI Architect (Neural Planning)
 
-### Projects
-- **Creation**: Admins and Product Owners can create new projects.
-- **Pinning**: Use the "Pin" icon on the dashboard to keep high-priority projects at the top of your view.
-- **Archiving**: Completed projects can be archived to keep the workspace clean while preserving historical data.
+The AI Architect is your co-pilot, powered by neural engines to handle the heavy lifting of project planning.
 
-### Kanban Board
-- **Task Creation**: Add tasks with titles, descriptions, priorities, and assigned members.
-- **Workflow**: Move tasks through **To Do**, **In Progress**, **Review**, and **Done**.
-- **Enforcements**: Only Admins can mark a task as "Done" to ensure quality control. Developers can update the status of tasks assigned to them.
-
-### Subtasks
-- Break down large tasks into smaller action items.
-- Subtasks can be checked off individually to track granular progress.
+- **Neural Task Decomposition**: Turn a single requirement into a fully architected roadmap with one click.
+- **Smart Estimation**: The AI suggests hours, priorities, and roles based on the complexity of the requirements.
+- **Bulk Creation**: Instantly populate Kanban boards with AI-generated subtasks and technical descriptions.
 
 ---
 
-## 🤖 3. AI Architect (Llama-3.3 Powered)
+## 📋 4. Execution & Governance
 
-The AI Architect is your co-pilot for agile planning.
+### Kanban Board & Workflow
+- **State Management**: Move tasks through **To Do**, **In Progress**, **Review**, and **Done**.
+- **Admin Verification**: Strict quality control ensures that only Admins can officially mark tasks as "Done".
+- **Subtask Tracking**: Manage granular progress with checkable action items within every task.
 
-### Automated Task Breakdown
-1. Open any project and click **"AI Suggest Tasks"**.
-2. Enter a high-level requirement (e.g., "Build a secure user login system").
-3. The AI will generate a structured list of tasks, including:
-   - Descriptive titles and technical details.
-   - Smart priority assignments.
-   - Estimated hours and recommended roles.
-   - Pre-defined subtasks for each task.
-4. **Bulk Creation**: Review the suggestions and click "Create All" to instantly populate your project board.
+### Communication & Notifications
+- **Smart Notification Bell**: Real-time alerts for mentions, assignments, and system updates.
+- **Inbox Management**: Use the **"Mark All as Read"** feature to instantly clear your notification queue or acknowledge individual alerts with a single click.
+- **Mentions (@)**: Seamlessly tag teammates to trigger instant in-app alerts.
 
 ---
 
-## 🤝 4. Collaboration Tools
+## 📊 5. Analytics & Impact
 
-### Team Communication
-- **Task Comments**: Discuss specific tasks within the task detail view.
-- **Mentions (@)**: Type `@` followed by a teammate's name to mention them. They will receive an instant notification.
-- **Notification Bell**: Tracks all your mentions, task assignments, and system alerts.
-
-### Resource Sharing
-- **Private Files**: Upload project assets and share them with specific team members or the entire organization.
-- **Link Vault**: Save important URLs (Documentation, Figma, Staging) with automatic metadata preview.
-
-### Meetings
-- **Scheduling**: Organize meetings with specific agendas and dates.
-- **Attendance**: Track who was present.
-- **Interactive Notes**: Store meeting outcomes and action items directly within the project context.
+Sprintora focuses on **measurable impact**:
+- **95% Faster Delivery**: Dramatic reduction in planning cycles via AI automation.
+- **80% Less Planning**: AI handles the "busy work" of task breakdown.
+- **Team Velocity**: Advanced charting showing real-time performance trends over 12-week cycles.
 
 ---
 
-## 📊 5. Dashboards & Analytics
+## 🛡️ 6. Administration & Security
 
-### Executive View
-- High-level project health cards.
-- Quick links to recently accessed projects.
-
-### Performance Analytics
-- **Team Velocity**: A bar chart showing task completion trends over the last 12 weeks.
-- **Work Distribution**: Visual breakdown of work assigned vs. work completed per user.
+- **Role-Based Access Control (RBAC)**: Fine-grained permissions for Admins, Owners, Developers, and Stakeholders.
+- **Audit Logging**: Every sensitive action is timestamped and logged for compliance.
+- **Data Portability**: Full organization database exports available for Admins.
+- **System Integrity**: 2FA-secured Master Access portal for global system health.
 
 ---
 
-## 🛡️ 6. Administration & Governance
+## 📱 7. Progressive Web App (PWA)
 
-### Team Management
-- **Role Hierarchy**:
-  - **Admin**: Full control over company settings, users, and all project data.
-  - **Product Owner/Scrum Master**: Manage project scope, tasks, and team assignments.
-  - **Developer**: Update task status and manage subtasks on assigned items.
-  - **Stakeholder**: View-only access to progress and reports.
-
-### Data Portability (Backups)
-- **Organization Backup**: Admins can generate a full database export of their company's data at any time.
-- **Master Portal**: Restricted to system owners (via OTP), allowing for global system maintenance.
-
-### Audit Logging
-- Every sensitive action (deleting a project, removing a user, downloading a backup) is recorded in the **Audit Log** for compliance and security reviews.
-
----
-
-## 📱 7. PWA & Mobile Experience
-
-- **Installable**: Add Sprintora to your home screen via your browser's "Add to Home Screen" prompt.
-- **Responsive Design**: The entire interface is optimized for mobile, tablet, and desktop viewports.
-- **Push Notifications**: Enable notifications in your browser settings to receive real-time alerts even when the app is closed.
+- **Native Feel**: Install Sprintora on your mobile or desktop device for a full-screen, distraction-free experience.
+- **Offline Readiness**: Fast load times and resilient architecture optimized for all connection types.
 
 ---
 

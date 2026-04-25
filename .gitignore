@@ -9,3 +9,11 @@ dist/
 *.log
 coverage/
 
+# Database initialization/cleanup
+truncate-db.js
+db-init.js
+add-push-table.js
+add-sharing-columns.js
+add-verification-columns.js
+truncate-db.js
+

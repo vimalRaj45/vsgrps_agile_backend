@@ -180,24 +180,52 @@ async function projectRoutes(fastify, options) {
     const { id } = req.params;
     const { companyId, userId } = req.session;
 
+    const dbClient = await pool.connect();
     try {
-      // First, get project details for audit log before deletion
-      const projectRes = await pool.query('SELECT * FROM projects WHERE id = $1 AND company_id = $2', [id, companyId]);
-      if (projectRes.rows.length === 0) return reply.code(404).send({ error: 'Project not found' });
+      await dbClient.query('BEGIN');
 
-      // Delete the project (cascading deletes for tasks etc. should be handled by DB constraints)
-      await pool.query('DELETE FROM projects WHERE id = $1 AND company_id = $2', [id, companyId]);
+      // 1. Get project details for audit log before deletion
+      const projectRes = await dbClient.query('SELECT * FROM projects WHERE id = $1 AND company_id = $2', [id, companyId]);
+      if (projectRes.rows.length === 0) {
+        await dbClient.query('ROLLBACK');
+        return reply.code(404).send({ error: 'Project not found' });
+      }
 
-      // Audit log
-      await pool.query(
+      const project = projectRes.rows[0];
+
+      // 2. Cascade delete related entities manually to avoid FK constraint violations
+      // Delete task-related items
+      await dbClient.query('DELETE FROM subtasks WHERE task_id IN (SELECT id FROM tasks WHERE project_id = $1)', [id]);
+      await dbClient.query('DELETE FROM task_comments WHERE task_id IN (SELECT id FROM tasks WHERE project_id = $1)', [id]);
+      await dbClient.query('DELETE FROM task_label_assignments WHERE task_id IN (SELECT id FROM tasks WHERE project_id = $1)', [id]);
+      await dbClient.query('DELETE FROM tasks WHERE project_id = $1', [id]);
+
+      // Delete meeting-related items
+      await dbClient.query('DELETE FROM meeting_attendees WHERE meeting_id IN (SELECT id FROM meetings WHERE project_id = $1)', [id]);
+      await dbClient.query('DELETE FROM meeting_notes WHERE meeting_id IN (SELECT id FROM meetings WHERE project_id = $1)', [id]);
+      await dbClient.query('DELETE FROM meetings WHERE project_id = $1', [id]);
+
+      // Delete project members and files
+      await dbClient.query('DELETE FROM project_members WHERE project_id = $1', [id]);
+      await dbClient.query('DELETE FROM files WHERE project_id = $1', [id]);
+
+      // 3. Delete the project itself
+      await dbClient.query('DELETE FROM projects WHERE id = $1 AND company_id = $2', [id, companyId]);
+
+      // 4. Audit log
+      await dbClient.query(
         'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-        [companyId, userId, 'project', id, 'deleted', JSON.stringify(projectRes.rows[0])]
+        [companyId, userId, 'project', id, 'deleted', JSON.stringify(project)]
       );
 
+      await dbClient.query('COMMIT');
       return { success: true };
     } catch (err) {
+      await dbClient.query('ROLLBACK');
       fastify.log.error(err);
-      return reply.code(500).send({ error: 'Failed to delete project' });
+      return reply.code(500).send({ error: 'Failed to delete project due to a database error.' });
+    } finally {
+      dbClient.release();
     }
   });
 }

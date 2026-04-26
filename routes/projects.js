@@ -205,9 +205,10 @@ async function projectRoutes(fastify, options) {
       await dbClient.query('DELETE FROM meeting_notes WHERE meeting_id IN (SELECT id FROM meetings WHERE project_id = $1)', [id]);
       await dbClient.query('DELETE FROM meetings WHERE project_id = $1', [id]);
 
-      // Delete project members and files
+      // Delete project members, files, and links
       await dbClient.query('DELETE FROM project_members WHERE project_id = $1', [id]);
       await dbClient.query('DELETE FROM files WHERE project_id = $1', [id]);
+      await dbClient.query('DELETE FROM links WHERE project_id = $1', [id]);
 
       // 3. Delete the project itself
       await dbClient.query('DELETE FROM projects WHERE id = $1 AND company_id = $2', [id, companyId]);

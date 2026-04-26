@@ -10,7 +10,7 @@ const permissions = {
   // Projects
   'project:create': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
   'project:update': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
-  'project:delete': [ROLES.ADMIN],
+  'project:delete': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
   'project:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER, ROLES.STAKEHOLDER],
 
   // Tasks

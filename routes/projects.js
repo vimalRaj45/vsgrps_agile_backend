@@ -114,7 +114,7 @@ async function projectRoutes(fastify, options) {
       return rows[0];
     } catch (err) {
       fastify.log.error(err);
-      return reply.code(500).send({ error: 'Database update failed' });
+      return reply.code(500).send({ error: 'Failed to update project: ' + err.message });
     }
   });
 

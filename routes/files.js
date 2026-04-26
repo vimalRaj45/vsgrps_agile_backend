@@ -45,6 +45,11 @@ async function fileRoutes(fastify, options) {
       const fileContent = await data.toBuffer();
       const fileSize = fileContent.length;
 
+      // Check per-file limit (5MB)
+      if (fileSize > 5 * 1024 * 1024) {
+        return reply.code(400).send({ error: 'Individual file size exceeds the 5MB limit.' });
+      }
+
       // Check Global storage quota (10MB)
       const LIMIT = 10 * 1024 * 1024;
       const currentTotal = await getTotalStorage(req.session.companyId);

@@ -174,6 +174,32 @@ async function projectRoutes(fastify, options) {
 
     return { success: true };
   });
+
+  // DELETE /projects/:id
+  fastify.delete('/:id', { preHandler: [authorize('project:delete')] }, async (req, reply) => {
+    const { id } = req.params;
+    const { companyId, userId } = req.session;
+
+    try {
+      // First, get project details for audit log before deletion
+      const projectRes = await pool.query('SELECT * FROM projects WHERE id = $1 AND company_id = $2', [id, companyId]);
+      if (projectRes.rows.length === 0) return reply.code(404).send({ error: 'Project not found' });
+
+      // Delete the project (cascading deletes for tasks etc. should be handled by DB constraints)
+      await pool.query('DELETE FROM projects WHERE id = $1 AND company_id = $2', [id, companyId]);
+
+      // Audit log
+      await pool.query(
+        'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
+        [companyId, userId, 'project', id, 'deleted', JSON.stringify(projectRes.rows[0])]
+      );
+
+      return { success: true };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Failed to delete project' });
+    }
+  });
 }
 
 module.exports = projectRoutes;

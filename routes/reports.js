@@ -106,7 +106,7 @@ async function reportRoutes(fastify, options) {
 
       // 4. Meetings Conducted
       const meetings = await pool.query(`
-        SELECT id, title, scheduled_at, duration_minutes
+        SELECT id, title, scheduled_at
         FROM meetings
         WHERE project_id = $1
         ORDER BY scheduled_at DESC

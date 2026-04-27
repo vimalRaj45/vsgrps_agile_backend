@@ -48,7 +48,11 @@ fastify.register(require('@fastify/session'), {
 
 
 
-fastify.register(require('@fastify/multipart'));
+fastify.register(require('@fastify/multipart'), {
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
 
 // Register routes with prefixes
 fastify.register(require('./routes/auth'), { prefix: '/auth' });

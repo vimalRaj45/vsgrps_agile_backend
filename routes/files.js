@@ -265,6 +265,62 @@ async function fileRoutes(fastify, options) {
     }
   });
 
+  // DELETE /files/:id
+  fastify.delete('/:id', async (req, reply) => {
+    try {
+      const { id } = req.params;
+      const { rows } = await pool.query('SELECT uploaded_by, filename FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+      
+      if (rows.length === 0) return reply.code(404).send({ error: 'File not found' });
+      
+      const file = rows[0];
+      if (file.uploaded_by !== req.session.userId && req.session.userRole !== 'Admin') {
+        return reply.code(403).send({ error: 'You can only delete files you uploaded.' });
+      }
+
+      await pool.query('DELETE FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+
+      // Audit log
+      await pool.query(
+        'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
+        [req.session.companyId, req.session.userId, 'file', id, 'deleted', JSON.stringify({ filename: file.filename })]
+      );
+
+      return { success: true };
+    } catch (err) {
+      console.error('Delete file error:', err);
+      return reply.code(500).send({ error: 'Failed to delete file' });
+    }
+  });
+
+  // DELETE /links/:id
+  fastify.delete('/links/:id', async (req, reply) => {
+    try {
+      const { id } = req.params;
+      const { rows } = await pool.query('SELECT added_by, title FROM links WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+      
+      if (rows.length === 0) return reply.code(404).send({ error: 'Link not found' });
+      
+      const link = rows[0];
+      if (link.added_by !== req.session.userId && req.session.userRole !== 'Admin') {
+        return reply.code(403).send({ error: 'You can only delete links you added.' });
+      }
+
+      await pool.query('DELETE FROM links WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+
+      // Audit log
+      await pool.query(
+        'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
+        [req.session.companyId, req.session.userId, 'link', id, 'deleted', JSON.stringify({ title: link.title })]
+      );
+
+      return { success: true };
+    } catch (err) {
+      console.error('Delete link error:', err);
+      return reply.code(500).send({ error: 'Failed to delete link' });
+    }
+  });
+
   // GET /files/storage
   fastify.get('/storage', async (req, reply) => {
     const used = await getTotalStorage(req.session.companyId);

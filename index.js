@@ -16,6 +16,7 @@ if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'https://agile.vsgrps.com',
+  'http://localhost:5173',
   'http://127.0.0.1:5173',
   'https://agile.vsgrps.com'
 ].filter(Boolean);

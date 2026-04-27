@@ -26,20 +26,37 @@ async function aiRoutes(fastify, options) {
         messages: [
           {
             role: 'system',
-            content: `You are an Agile Architect. Break down the user requirement into specific, actionable tasks. 
-            Return ONLY a JSON array of objects. Each object MUST strictly contain:
-            - title (string)
-            - description (string)
-            - priority (Low, Medium, High, Critical)
-            - estimated_hours (number)
-            - days_to_complete (number)
-            - recommended_role (string)
-            - subtasks (array of strings)
-            - estimation_rationale (string: MANDATORY - Detailed explanation of why you chose this priority and these specific hours)
-            - predictive_risk_analysis (string: MANDATORY - Prediction of a specific technical bottleneck or project risk for this task)
-            - impact_score (number: 1-100 - Predictive score of how much this task impacts the overall project success)
-            
-            Format: [{"title": "...", "description": "...", "priority": "...", "estimated_hours": 0, "days_to_complete": 3, "recommended_role": "...", "subtasks": ["..."], "estimation_rationale": "...", "predictive_risk_analysis": "...", "impact_score": 85}]`
+            content: `Return ONLY a JSON object with a "tasks" key containing an array of objects. 
+            Each task object MUST STRICTLY include these 10 fields:
+            1.  "title": (string)
+            2.  "description": (string)
+            3.  "priority": (string: Low, Medium, High, Critical)
+            4.  "estimated_hours": (number)
+            5.  "days_to_complete": (number)
+            6.  "recommended_role": (string)
+            7.  "subtasks": (array of strings)
+            8.  "estimation_rationale": (string: MANDATORY - Why this priority/hours? e.g., "High priority because authentication is a core security component...")
+            9.  "predictive_risk_analysis": (string: MANDATORY - Potential bottleneck? e.g., "Risk of delays due to third-party OAuth configuration complexity...")
+            10. "impact_score": (number: 1-100 - Importance to project success)
+
+            Example Output:
+            {
+              "tasks": [
+                {
+                  "title": "Setup OAuth",
+                  "description": "...",
+                  "priority": "High",
+                  "estimated_hours": 8,
+                  "days_to_complete": 2,
+                  "recommended_role": "Backend",
+                  "subtasks": ["..."],
+                  "estimation_rationale": "Critical for security...",
+                  "predictive_risk_analysis": "API rate limits...",
+                  "impact_score": 95
+                }
+              ]
+            }
+            `
           },
           {
             role: 'user',

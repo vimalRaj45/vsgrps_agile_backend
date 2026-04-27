@@ -5,7 +5,37 @@ const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aw
 
 async function fileRoutes(fastify, options) {
   // Helper to calculate total organizational storage (Rows + Files)
+  // Helper to calculate total organizational storage (Rows only)
   const getTotalStorage = async (companyId) => {
+    try {
+      const { rows } = await pool.query(`
+        SELECT (
+          COALESCE((SELECT SUM(pg_column_size(c)) FROM companies c WHERE id = $1), 0) +
+          COALESCE((SELECT SUM(pg_column_size(u)) FROM users u WHERE company_id = $1), 0) +
+          COALESCE((SELECT SUM(pg_column_size(i)) FROM invites i WHERE company_id = $1), 0) +
+          COALESCE((SELECT SUM(pg_column_size(p)) FROM projects p WHERE company_id = $1), 0) +
+          COALESCE((SELECT SUM(pg_column_size(pm)) FROM project_members pm WHERE project_id IN (SELECT id FROM projects WHERE company_id = $1)), 0) +
+          COALESCE((SELECT SUM(pg_column_size(t)) FROM tasks t WHERE company_id = $1), 0) +
+          COALESCE((SELECT SUM(pg_column_size(st)) FROM subtasks st WHERE task_id IN (SELECT id FROM tasks WHERE company_id = $1)), 0) +
+          COALESCE((SELECT SUM(pg_column_size(tl)) FROM task_labels tl WHERE company_id = $1), 0) +
+          COALESCE((SELECT SUM(pg_column_size(tla)) FROM task_label_assignments tla WHERE task_id IN (SELECT id FROM tasks WHERE company_id = $1)), 0) +
+          COALESCE((SELECT SUM(pg_column_size(tc)) FROM task_comments tc WHERE task_id IN (SELECT id FROM tasks WHERE company_id = $1)), 0) +
+          COALESCE((SELECT SUM(pg_column_size(m)) FROM meetings m WHERE company_id = $1), 0) +
+          COALESCE((SELECT SUM(pg_column_size(ma)) FROM meeting_attendees ma WHERE meeting_id IN (SELECT id FROM meetings WHERE company_id = $1)), 0) +
+          COALESCE((SELECT SUM(pg_column_size(mn)) FROM meeting_notes mn WHERE meeting_id IN (SELECT id FROM meetings WHERE company_id = $1)), 0) +
+          COALESCE((SELECT SUM(pg_column_size(n)) FROM notifications n WHERE company_id = $1), 0) +
+          COALESCE((SELECT SUM(pg_column_size(al)) FROM audit_log al WHERE company_id = $1), 0)
+        ) as total_bytes
+      `, [companyId]);
+      return parseInt(rows[0].total_bytes || 0);
+    } catch (err) {
+      console.error('Storage calculation error:', err);
+      return 0;
+    }
+  };
+
+  // Helper to calculate Asset Storage only (Files + Links)
+  const getAssetStorage = async (companyId) => {
     try {
       const { rows } = await pool.query(`
         SELECT (
@@ -15,8 +45,8 @@ async function fileRoutes(fastify, options) {
       `, [companyId]);
       return parseInt(rows[0].total_bytes || 0);
     } catch (err) {
-      console.error('Storage calculation error:', err);
-      return 0; // Fallback to 0 to prevent 500 errors
+      console.error('Asset storage calculation error:', err);
+      return 0;
     }
   };
 
@@ -37,12 +67,12 @@ async function fileRoutes(fastify, options) {
         return reply.code(400).send({ error: 'Individual file size exceeds the 50MB limit.' });
       }
 
-      // Check Global storage quota (200MB)
+      // Check Global asset storage quota (200MB)
       const LIMIT = 200 * 1024 * 1024;
-      const currentTotal = await getTotalStorage(req.session.companyId);
+      const currentAssetTotal = await getAssetStorage(req.session.companyId);
 
-      if (currentTotal + fileSize > LIMIT) {
-        return reply.code(400).send({ error: 'Organizational storage limit reached (200MB). Please contact VSGRPS to upgrade your limits.' });
+      if (currentAssetTotal + fileSize > LIMIT) {
+        return reply.code(400).send({ error: 'Organizational asset storage limit reached (200MB). Files do not affect Workspace Health.' });
       }
 
       const is_private = data.fields.is_private?.value === 'true';
@@ -349,16 +379,19 @@ async function fileRoutes(fastify, options) {
 
   // GET /files/storage
   fastify.get('/storage', async (req, reply) => {
-    const used = await getTotalStorage(req.session.companyId);
+    const assetUsed = await getAssetStorage(req.session.companyId);
+    const healthUsed = await getTotalStorage(req.session.companyId);
     const limit = 200 * 1024 * 1024; // 200MB
+    
     return {
-      used,
+      used: assetUsed,
       limit,
-      usedFormatted: used < 1024 * 1024 
-        ? (used / 1024).toFixed(2) + ' KB' 
-        : (used / (1024 * 1024)).toFixed(2) + ' MB',
+      usedFormatted: assetUsed < 1024 * 1024 
+        ? (assetUsed / 1024).toFixed(2) + ' KB' 
+        : (assetUsed / (1024 * 1024)).toFixed(2) + ' MB',
       limitFormatted: '200 MB',
-      percent: (used / limit) * 100
+      percent: (assetUsed / limit) * 100,
+      healthPercent: (healthUsed / limit) * 100 // Independent health metric
     };
   });
 }

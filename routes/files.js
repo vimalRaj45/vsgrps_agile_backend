@@ -50,6 +50,40 @@ async function fileRoutes(fastify, options) {
     }
   };
 
+  // Helper to calculate dynamic Workspace Health
+  const getWorkspaceHealth = async (companyId) => {
+    try {
+      // 1. Task Completion Rate (70% weight)
+      const taskRes = await pool.query(`
+        SELECT 
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'Done') as completed
+        FROM tasks WHERE company_id = $1
+      `, [companyId]);
+      
+      const totalTasks = parseInt(taskRes.rows[0].total || 0);
+      const completedTasks = parseInt(taskRes.rows[0].completed || 0);
+      const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 100;
+
+      // 2. Activity Score (30% weight) - Audit logs in last 7 days
+      const activityRes = await pool.query(`
+        SELECT COUNT(*) as activity_count 
+        FROM audit_log 
+        WHERE company_id = $1 AND created_at > NOW() - INTERVAL '7 days'
+      `, [companyId]);
+      
+      const activityCount = parseInt(activityRes.rows[0].activity_count || 0);
+      const activityScore = Math.min((activityCount / 20) * 100, 100); // 20 actions per week = 100% active
+
+      // Weighted calculation
+      const health = (completionRate * 0.7) + (activityScore * 0.3);
+      return Math.round(health);
+    } catch (err) {
+      console.error('Health calculation error:', err);
+      return 95; // High fallback
+    }
+  };
+
   fastify.addHook('preHandler', authenticate);
 
   // POST /files/upload
@@ -380,7 +414,7 @@ async function fileRoutes(fastify, options) {
   // GET /files/storage
   fastify.get('/storage', async (req, reply) => {
     const assetUsed = await getAssetStorage(req.session.companyId);
-    const healthUsed = await getTotalStorage(req.session.companyId);
+    const healthPercent = await getWorkspaceHealth(req.session.companyId);
     const limit = 200 * 1024 * 1024; // 200MB
     
     return {
@@ -391,7 +425,7 @@ async function fileRoutes(fastify, options) {
         : (assetUsed / (1024 * 1024)).toFixed(2) + ' MB',
       limitFormatted: '200 MB',
       percent: (assetUsed / limit) * 100,
-      healthPercent: (healthUsed / limit) * 100 // Independent health metric
+      healthPercent: healthPercent
     };
   });
 }

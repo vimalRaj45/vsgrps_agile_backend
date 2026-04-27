@@ -27,16 +27,19 @@ async function aiRoutes(fastify, options) {
           {
             role: 'system',
             content: `You are an Agile Architect. Break down the user requirement into specific, actionable tasks. 
-            Return ONLY a JSON array of objects. Each object must have:
+            Return ONLY a JSON array of objects. Each object MUST strictly contain:
             - title (string)
             - description (string)
             - priority (Low, Medium, High, Critical)
             - estimated_hours (number)
-            - days_to_complete (number - how many days from now this should be finished)
-            - recommended_role (e.g. Frontend Developer, Backend Developer, Designer, etc.)
+            - days_to_complete (number)
+            - recommended_role (string)
             - subtasks (array of strings)
+            - estimation_rationale (string: MANDATORY - Detailed explanation of why you chose this priority and these specific hours)
+            - predictive_risk_analysis (string: MANDATORY - Prediction of a specific technical bottleneck or project risk for this task)
+            - impact_score (number: 1-100 - Predictive score of how much this task impacts the overall project success)
             
-            Format: [{"title": "...", "description": "...", "priority": "...", "estimated_hours": 0, "days_to_complete": 3, "recommended_role": "...", "subtasks": ["subtask 1", "subtask 2"]}, ...]`
+            Format: [{"title": "...", "description": "...", "priority": "...", "estimated_hours": 0, "days_to_complete": 3, "recommended_role": "...", "subtasks": ["..."], "estimation_rationale": "...", "predictive_risk_analysis": "...", "impact_score": 85}]`
           },
           {
             role: 'user',

@@ -47,17 +47,17 @@ async function fileRoutes(fastify, options) {
       const fileContent = await data.toBuffer();
       const fileSize = fileContent.length;
 
-      // Check per-file limit (5MB)
-      if (fileSize > 5 * 1024 * 1024) {
-        return reply.code(400).send({ error: 'Individual file size exceeds the 5MB limit.' });
+      // Check per-file limit (50MB)
+      if (fileSize > 50 * 1024 * 1024) {
+        return reply.code(400).send({ error: 'Individual file size exceeds the 50MB limit.' });
       }
 
-      // Check Global storage quota (10MB)
-      const LIMIT = 10 * 1024 * 1024;
+      // Check Global storage quota (200MB)
+      const LIMIT = 200 * 1024 * 1024;
       const currentTotal = await getTotalStorage(req.session.companyId);
 
       if (currentTotal + fileSize > LIMIT) {
-        return reply.code(400).send({ error: 'Organizational storage limit reached (10MB). Please contact VSGRPS to upgrade your limits.' });
+        return reply.code(400).send({ error: 'Organizational storage limit reached (200MB). Please contact VSGRPS to upgrade your limits.' });
       }
 
       const is_private = data.fields.is_private?.value === 'true';
@@ -365,14 +365,14 @@ async function fileRoutes(fastify, options) {
   // GET /files/storage
   fastify.get('/storage', async (req, reply) => {
     const used = await getTotalStorage(req.session.companyId);
-    const limit = 10 * 1024 * 1024; // 10MB
+    const limit = 200 * 1024 * 1024; // 200MB
     return {
       used,
       limit,
       usedFormatted: used < 1024 * 1024 
         ? (used / 1024).toFixed(2) + ' KB' 
         : (used / (1024 * 1024)).toFixed(2) + ' MB',
-      limitFormatted: '10 MB',
+      limitFormatted: '200 MB',
       percent: (used / limit) * 100
     };
   });

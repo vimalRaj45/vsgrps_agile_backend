@@ -1,5 +1,7 @@
 const pool = require('../db');
 const authenticate = require('../middleware/authenticate');
+const { r2Client, bucketName } = require('../utils/r2');
+const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 async function fileRoutes(fastify, options) {
   // Helper to calculate total organizational storage (Rows + Files)
@@ -20,7 +22,7 @@ async function fileRoutes(fastify, options) {
           COALESCE((SELECT SUM(pg_column_size(m)) FROM meetings m WHERE company_id = $1), 0) +
           COALESCE((SELECT SUM(pg_column_size(ma)) FROM meeting_attendees ma WHERE meeting_id IN (SELECT id FROM meetings WHERE company_id = $1)), 0) +
           COALESCE((SELECT SUM(pg_column_size(mn)) FROM meeting_notes mn WHERE meeting_id IN (SELECT id FROM meetings WHERE company_id = $1)), 0) +
-          COALESCE((SELECT SUM(pg_column_size(f)) FROM files f WHERE company_id = $1), 0) +
+          COALESCE((SELECT SUM(size) FROM files WHERE company_id = $1), 0) +
           COALESCE((SELECT SUM(pg_column_size(l)) FROM links l WHERE company_id = $1), 0) +
           COALESCE((SELECT SUM(pg_column_size(n)) FROM notifications n WHERE company_id = $1), 0) +
           COALESCE((SELECT SUM(pg_column_size(al)) FROM audit_log al WHERE company_id = $1), 0)
@@ -67,7 +69,7 @@ async function fileRoutes(fastify, options) {
       const mid = meeting_id?.value && meeting_id.value !== 'null' && meeting_id.value !== '' ? meeting_id.value : null;
 
       const { rows } = await pool.query(
-        'INSERT INTO files (company_id, project_id, task_id, meeting_id, uploaded_by, filename, mimetype, size, data, is_private, shared_with) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, filename',
+        'INSERT INTO files (company_id, project_id, task_id, meeting_id, uploaded_by, filename, mimetype, size, is_private, shared_with) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, filename',
         [
           req.session.companyId, 
           pid, 
@@ -77,11 +79,25 @@ async function fileRoutes(fastify, options) {
           data.filename, 
           data.mimetype, 
           fileSize, 
-          fileContent,
           is_private,
           shared_with
         ]
       );
+
+      const fileId = rows[0].id;
+      const r2Key = `files/${req.session.companyId}/${fileId}/${data.filename}`;
+
+      // Upload to Cloudflare R2
+      await r2Client.send(new PutObjectCommand({
+        Bucket: bucketName,
+        Key: r2Key,
+        Body: fileContent,
+        ContentType: data.mimetype,
+      }));
+
+      // Update file record with R2 key (optional, but good for tracking)
+      // For now we'll just store the key in our logic or add a column if needed.
+      // We can reconstruct the key from ID and filename.
 
       // Audit log
     await pool.query(
@@ -154,21 +170,34 @@ async function fileRoutes(fastify, options) {
 
   // GET /files/:id/download
   fastify.get('/:id/download', async (req, reply) => {
-    const { id } = req.params;
-    const { rows } = await pool.query('SELECT * FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
-    if (rows.length === 0) return reply.code(404).send({ error: 'File not found' });
+    try {
+      const { id } = req.params;
+      const { rows } = await pool.query('SELECT * FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+      if (rows.length === 0) return reply.code(404).send({ error: 'File not found' });
 
-    const file = rows[0];
+      const file = rows[0];
+      const r2Key = `files/${req.session.companyId}/${file.id}/${file.filename}`;
 
-    // Audit log
-    await pool.query(
-      'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'file', id, 'downloaded', JSON.stringify({ filename: file.filename })]
-    );
+      // Audit log
+      await pool.query(
+        'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
+        [req.session.companyId, req.session.userId, 'file', id, 'downloaded', JSON.stringify({ filename: file.filename })]
+      );
 
-    reply.header('Content-Disposition', `attachment; filename="${file.filename}"`);
-    reply.header('Content-Type', file.mimetype);
-    return file.data;
+      const response = await r2Client.send(new GetObjectCommand({
+        Bucket: bucketName,
+        Key: r2Key,
+      }));
+
+      reply.header('Content-Disposition', `attachment; filename="${file.filename}"`);
+      reply.header('Content-Type', file.mimetype);
+      
+      // Stream the file from R2 to the client
+      return response.Body;
+    } catch (err) {
+      console.error('Download error:', err);
+      return reply.code(500).send({ error: 'Failed to download file from storage.' });
+    }
   });
 
   // POST /links
@@ -269,13 +298,25 @@ async function fileRoutes(fastify, options) {
   fastify.delete('/:id', async (req, reply) => {
     try {
       const { id } = req.params;
-      const { rows } = await pool.query('SELECT uploaded_by, filename FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+      const { rows } = await pool.query('SELECT id, uploaded_by, filename FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
       
       if (rows.length === 0) return reply.code(404).send({ error: 'File not found' });
       
       const file = rows[0];
       if (file.uploaded_by !== req.session.userId && req.session.userRole !== 'Admin') {
         return reply.code(403).send({ error: 'You can only delete files you uploaded.' });
+      }
+
+      const r2Key = `files/${req.session.companyId}/${file.id}/${file.filename}`;
+
+      // Delete from Cloudflare R2
+      try {
+        await r2Client.send(new DeleteObjectCommand({
+          Bucket: bucketName,
+          Key: r2Key,
+        }));
+      } catch (r2Err) {
+        console.warn('Failed to delete from R2, proceeding with DB deletion:', r2Err);
       }
 
       await pool.query('DELETE FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);

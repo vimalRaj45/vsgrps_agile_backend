@@ -37,7 +37,14 @@ const FOOTER_STYLE = `
     text-align: center;
 `;
 
-const LOGO_TEXT = `<h1 style="margin:0; color:#4f46e5; letter-spacing:-1px; font-weight:900;">Sprintora</h1>`;
+const LOGO_URL = "https://agile.vsgrps.com/favicon.png"; // Replace with your production logo URL
+
+const LOGO_TEXT = `
+    <div style="text-align: center; margin-bottom: 10px;">
+        <img src="${LOGO_URL}" alt="Sprintora Logo" style="width: 48px; height: 48px; border-radius: 12px;" />
+    </div>
+    <h1 style="margin:0; color:#4f46e5; letter-spacing:-1px; font-weight:900;">Sprintora</h1>
+`;
 
 function wrapLayout(content) {
     return `

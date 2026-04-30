@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { sendMail } = require('../utils/mailer');
+const emailTemplates = require('../utils/emailTemplates');
 
 // In-memory store for OTP (cleared on restart, fine for superadmin use)
 let currentOTP = null;
@@ -21,17 +22,8 @@ async function sendOTPEmail(email, otp) {
 
     await sendMail({
       to: email,
-      subject: 'Super Admin Access Code',
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; color: #333; border: 1px solid #eee; border-radius: 8px;">
-          <h2 style="color: #6366f1;">Super Admin Verification</h2>
-          <p>Your one-time access code is:</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1e1b4b; padding: 20px; background: #f4f4f5; border-radius: 8px; text-align: center; margin: 20px 0;">
-            ${otp}
-          </div>
-          <p style="font-size: 12px; color: #777;">This code will expire in 10 minutes. If you did not request this, please secure your account immediately.</p>
-        </div>
-      `
+      subject: 'Sprintora | Super Admin Access Code',
+      html: emailTemplates.otp(otp)
     });
   } catch (err) {
     console.error('OTP Email Error:', err.message);

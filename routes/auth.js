@@ -2,6 +2,7 @@ const pool = require('../db');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { sendMail } = require('../utils/mailer');
+const emailTemplates = require('../utils/emailTemplates');
 const authenticate = require('../middleware/authenticate');
 
 async function sendVerificationEmail(req, email, name, token) {
@@ -9,22 +10,10 @@ async function sendVerificationEmail(req, email, name, token) {
   const verificationLink = `${origin.replace(/\/$/, '')}/verify?token=${token}`;
 
   try {
-    console.log('--- DEVELOPMENT VERIFICATION LINK ---');
-    console.log(`User: ${email}`);
-    console.log(`Link: ${verificationLink}`);
-    console.log('------------------------------------');
-
     await sendMail({
       to: email,
-      subject: 'Verify your VSGRPS Agile Account',
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; color: #333;">
-          <h2>Welcome to VSGRPS Agile, ${name}!</h2>
-          <p>Please verify your email address to activate your account and start managing your projects.</p>
-          <a href="${verificationLink}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 20px;">Verify Account</a>
-          <p style="margin-top: 30px; font-size: 12px; color: #777;">If you did not create this account, please ignore this email.</p>
-        </div>
-      `
+      subject: 'Verify your Sprintora Account',
+      html: emailTemplates.verification(name, verificationLink)
     });
   } catch (err) {
     console.error('Email Error:', err.message);
@@ -36,22 +25,10 @@ async function sendResetEmail(req, email, name, token) {
   const resetLink = `${origin.replace(/\/$/, '')}/reset-password?token=${token}`;
 
   try {
-    console.log('--- DEVELOPMENT RESET LINK ---');
-    console.log(`User: ${email}`);
-    console.log(`Link: ${resetLink}`);
-    console.log('------------------------------');
-
     await sendMail({
       to: email,
-      subject: 'Reset your VSGRPS Agile Password',
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; color: #333;">
-          <h2>Password Reset Request</h2>
-          <p>Hi ${name}, we received a request to reset your password. Click the button below to set a new one.</p>
-          <a href="${resetLink}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 20px;">Reset Password</a>
-          <p style="margin-top: 30px; font-size: 12px; color: #777;">If you did not request this, please ignore this email. The link will expire in 1 hour.</p>
-        </div>
-      `
+      subject: 'Reset your Sprintora Password',
+      html: emailTemplates.resetPassword(name, resetLink)
     });
   } catch (err) {
     console.error('Reset Email Error:', err.message);

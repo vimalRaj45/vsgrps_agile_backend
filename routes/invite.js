@@ -2,6 +2,7 @@ const pool = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const { sendMail } = require('../utils/mailer');
+const emailTemplates = require('../utils/emailTemplates');
 const authenticate = require('../middleware/authenticate');
 const { authorize } = require('../middleware/authorize');
 
@@ -10,23 +11,10 @@ async function sendInviteEmail(req, email, companyName, inviterName, token) {
   const inviteLink = `${origin.replace(/\/$/, '')}/invite/${token}`;
 
   try {
-    console.log('--- DEVELOPMENT INVITE LINK ---');
-    console.log(`Invite to: ${email}`);
-    console.log(`Link: ${inviteLink}`);
-    console.log('-------------------------------');
-
     await sendMail({
       to: email,
-      subject: `Invitation to join ${companyName} on VSGRPS Agile`,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; color: #333;">
-          <h2>Workspace Invitation</h2>
-          <p><strong>${inviterName}</strong> has invited you to join the <strong>${companyName}</strong> workspace on VSGRPS Agile.</p>
-          <p>Click the button below to set up your account and get started:</p>
-          <a href="${inviteLink}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 20px;">Join Workspace</a>
-          <p style="margin-top: 30px; font-size: 12px; color: #777;">If you were not expecting this invitation, please ignore this email.</p>
-        </div>
-      `
+      subject: `Invitation to join ${companyName} on Sprintora`,
+      html: emailTemplates.invitation(companyName, inviterName, inviteLink)
     });
   } catch (err) {
     console.error('Invite Email Error:', err.message);

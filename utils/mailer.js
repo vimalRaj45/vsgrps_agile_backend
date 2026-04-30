@@ -1,39 +1,39 @@
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 const dotenv = require('dotenv');
 
 dotenv.config();
 
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_PASS = process.env.GMAIL_PASS;
-const GMAIL_SENDER_NAME = process.env.GMAIL_SENDER_NAME || "VSGRPS";
-
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_PASS
-    }
-});
+const BREVO_USER = process.env.BREVO_USER;
+const BREVO_PASS = process.env.BREVO_PASS;
+const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || "VSGRPS";
 
 async function sendMail({ to, subject, html }) {
-    if (!GMAIL_USER || !GMAIL_PASS) {
-        console.warn("⚠️ Gmail credentials not found in .env");
+    if (!BREVO_USER || !BREVO_PASS) {
+        console.warn("⚠️ Brevo credentials not found in .env");
         return;
     }
 
-    const mailOptions = {
-        from: `"${GMAIL_SENDER_NAME}" <${GMAIL_USER}>`,
-        to,
-        subject,
-        html
-    };
-
     try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`✅ Email sent: ${info.messageId}`);
-        return info;
+        const response = await axios.post('https://api.brevo.com/v3/smtp/email', {
+            sender: {
+                name: BREVO_SENDER_NAME,
+                email: BREVO_USER
+            },
+            to: [{ email: to }],
+            subject: subject,
+            htmlContent: html
+        }, {
+            headers: {
+                'api-key': BREVO_PASS,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+
+        console.log(`✅ Email sent via Brevo API: ${response.data.messageId}`);
+        return response.data;
     } catch (error) {
-        console.error("❌ Nodemailer Error:", error);
+        console.error("❌ Brevo API Error:", error.response ? error.response.data : error.message);
         throw error;
     }
 }

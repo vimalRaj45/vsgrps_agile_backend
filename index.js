@@ -17,8 +17,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   'https://agile.vsgrps.com',
   'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'https://agile.vsgrps.com'
+  'http://127.0.0.1:5173'
 ].filter(Boolean);
 
 fastify.register(require('@fastify/cors'), {
@@ -39,10 +38,12 @@ fastify.register(require('@fastify/session'), {
   secret: SESSION_SECRET,
   store: sessionStore,
   cookieName: 'session',
+  saveUninitialized: false, // Don't create sessions for guests
   cookie: {
-    secure: process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL?.includes('localhost'),
-    sameSite: (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL?.includes('localhost')) ? 'none' : 'lax',
-    httpOnly: true
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours default
   }
 });
 

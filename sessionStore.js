@@ -33,7 +33,10 @@ class PostgresStore {
     try {
       await this.ensureTable();
       const { rows } = await pool.query('SELECT data FROM sessions WHERE id = $1 AND expires > NOW()', [sessionId]);
-      if (rows.length === 0) return cb(null, null);
+      if (rows.length === 0) {
+        console.warn(`[SessionStore] Session ${sessionId} not found or expired`);
+        return cb(null, null);
+      }
       cb(null, rows[0].data);
     } catch (err) {
       cb(err);

@@ -3,9 +3,6 @@ const fastify = require('fastify')({
   logger: true,
   trustProxy: true // Required for Render/Proxies to handle Secure cookies
 });
-const { clerkPlugin } = require('@clerk/fastify');
-
-fastify.register(clerkPlugin);
 
 // Environment Variables
 const PORT = process.env.PORT || 3000;

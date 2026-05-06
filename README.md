@@ -5,10 +5,9 @@ The neural heart of the Sprintora Workspace. A secure, high-performance, and mul
 ## 🌟 Core Services
 
 ### 🧠 Neural Planning Engine
-- **Llama-3.3 Powered**: Deep integration with Cloudflare AI Gateway (Llama 3.3 70B) for near-instant requirement analysis.
-- **Project Tracking**: Kanban boards with drag-and-drop support.
-- **Smart Meetings**: Integrated meeting scheduling and documentation.
-- **Advanced Reports**: Real-time project velocity and health metrics.
+- **Llama-3.3 Powered**: Deep integration with Groq API for near-instant requirement analysis.
+- **Automated Architecting**: Recursive task and subtask generation with context-aware estimations.
+- **Smart Prioritization**: Heuristic-driven priority assignment based on technical complexity.
 
 ### 🏢 Multi-Tenant Infrastructure
 - **Secure Isolation**: Strict row-level data segregation ensures zero data leakage between organizations.
@@ -31,7 +30,7 @@ The neural heart of the Sprintora Workspace. A secure, high-performance, and mul
 - **Query Engine**: Node-Postgres (Raw SQL for performance)
 - **Authentication**: `fastify-session` + `fastify-cookie`
 - **Security**: `fastify-helmet`, rate limiting, and SQL injection protection.
-- **AI Engine**: Cloudflare AI Gateway (Llama 3.3 70B)
+- **AI Engine**: Groq SDK (Llama-3.3-70B-Versatile)
 
 ## 📂 Repositories
 - **Backend**: [https://github.com/vimalRaj45/vsgrps_agile_backend](https://github.com/vimalRaj45/vsgrps_agile_backend)
@@ -47,8 +46,7 @@ DATABASE_URL=your_postgres_url
 SESSION_SECRET=your_long_random_string
 BREVO_API_KEY=your_brevo_key
 BREVO_SENDER_EMAIL=your_verified_email
-CLOUDFLARE_ACCOUNT_ID=your_id
-CLOUDFLARE_AI_TOKEN=your_token
+GROQ_API_KEY=your_groq_key
 FRONTEND_URL=http://localhost:5173
 ```
 

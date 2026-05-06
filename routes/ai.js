@@ -26,66 +26,81 @@ async function aiRoutes(fastify, options) {
     }
 
     try {
+      console.log('🔮 Calling Cloudflare AI Gateway (Llama 3.3 70B) for project:', projectId || 'General');
       const response = await axios.post(
-        `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`,
+        `https://gateway.ai.cloudflare.com/v1/${CLOUDFLARE_ACCOUNT_ID}/default/compat/chat/completions`,
         {
+          model: 'workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast',
           messages: [
             {
               role: 'system',
-              content: `Return ONLY a JSON object with a "tasks" key containing an array of objects. 
-              Each task object MUST STRICTLY include these 10 fields:
-              1.  "title": (string)
-              2.  "description": (string)
-              3.  "priority": (string: Low, Medium, High, Critical)
-              4.  "estimated_hours": (number)
-              5.  "days_to_complete": (number)
-              6.  "recommended_role": (string)
-              7.  "subtasks": (array of strings)
-              8.  "estimation_rationale": (string)
-              9.  "predictive_risk_analysis": (string)
-              10. "impact_score": (number: 1-100)
+              content: `You are a professional project architect. Return ONLY a valid JSON object. 
+              The object MUST have a "tasks" key containing an array of objects.
+              Each task object MUST include:
+              1. "title" (string)
+              2. "description" (string)
+              3. "priority" (Low, Medium, High, Critical)
+              4. "estimated_hours" (number)
+              5. "days_to_complete" (number)
+              6. "recommended_role" (string)
+              7. "subtasks" (array of strings)
+              8. "estimation_rationale" (string)
+              9. "predictive_risk_analysis" (string)
+              10. "impact_score" (number 1-100)
 
-              IMPORTANT: You MUST respond with valid JSON ONLY. No preamble, no explanation.`
+              IMPORTANT: Response must be raw JSON. No markdown, no "Sure!", no "Here is your JSON".`
             },
             {
               role: 'user',
-              content: `Project Context: ${projectId || 'General'}. Requirement: ${requirement}`
+              content: `Create a task breakdown for this requirement: ${requirement}`
             }
-          ]
+          ],
+          temperature: 0.1
         },
         {
           headers: {
-            'Authorization': `Bearer ${CLOUDFLARE_AI_TOKEN}`,
+            'cf-aig-authorization': `Bearer ${CLOUDFLARE_AI_TOKEN}`,
             'Content-Type': 'application/json'
           }
         }
       );
 
-      const result = response.data;
+      // AI Gateway compat mode returns OpenAI-like structure: { choices: [ { message: { content: "..." } } ] }
+      const content = response.data.choices?.[0]?.message?.content;
       
-      if (!result.success) {
-        throw new Error(result.errors?.[0]?.message || 'Cloudflare AI request failed');
+      if (!content) {
+        console.error('❌ AI Gateway Error: No content in response', response.data);
+        throw new Error('AI failed to return content');
       }
 
-      const content = result.result.response;
+      console.log('🤖 Raw AI Response:', content);
       
       let tasks = [];
       try {
           const parsed = JSON.parse(content);
           tasks = parsed.tasks || (Array.isArray(parsed) ? parsed : []);
       } catch (e) {
-          // Robust parsing for common AI markdown output
-          const jsonMatch = content.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+          console.log('⚠️ Direct JSON parse failed, trying regex extraction...');
+          const jsonMatch = content.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
           if (jsonMatch) {
-              const cleaned = JSON.parse(jsonMatch[0]);
-              tasks = cleaned.tasks || (Array.isArray(cleaned) ? cleaned : []);
+              try {
+                  const cleaned = JSON.parse(jsonMatch[1]);
+                  tasks = cleaned.tasks || (Array.isArray(cleaned) ? cleaned : []);
+                  console.log('✅ Successfully extracted JSON via regex');
+              } catch (innerError) {
+                  console.error('❌ Regex extraction also failed to parse as JSON');
+              }
           }
+      }
+
+      if (!tasks || tasks.length === 0) {
+        console.warn('⚠️ No tasks were generated or parsed.');
       }
 
       return { tasks };
     } catch (err) {
       console.error('Cloudflare AI Error:', err.response?.data || err.message);
-      return reply.code(500).send({ error: 'AI suggestion failed. Please ensure CLOUDFLARE_AI_TOKEN is valid.' });
+      return reply.code(500).send({ error: 'AI suggestion failed. Check backend logs for details.' });
     }
   });
 }

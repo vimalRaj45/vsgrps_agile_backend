@@ -5,7 +5,7 @@ The neural heart of the Sprintora Workspace. A secure, high-performance, and mul
 ## 🌟 Core Services
 
 ### 🧠 Neural Planning Engine
-- **Llama-3 Powered**: Deep integration with Cloudflare AI Workers for near-instant requirement analysis.
+- **Llama-3.3 Powered**: Deep integration with Cloudflare AI Gateway (Llama 3.3 70B) for near-instant requirement analysis.
 - **Project Tracking**: Kanban boards with drag-and-drop support.
 - **Smart Meetings**: Integrated meeting scheduling and documentation.
 - **Advanced Reports**: Real-time project velocity and health metrics.
@@ -31,7 +31,7 @@ The neural heart of the Sprintora Workspace. A secure, high-performance, and mul
 - **Query Engine**: Node-Postgres (Raw SQL for performance)
 - **Authentication**: `fastify-session` + `fastify-cookie`
 - **Security**: `fastify-helmet`, rate limiting, and SQL injection protection.
-- **AI Engine**: Cloudflare AI Workers (Llama 3 8B)
+- **AI Engine**: Cloudflare AI Gateway (Llama 3.3 70B)
 
 ## 📂 Repositories
 - **Backend**: [https://github.com/vimalRaj45/vsgrps_agile_backend](https://github.com/vimalRaj45/vsgrps_agile_backend)

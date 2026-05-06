@@ -11,14 +11,15 @@ async function testCloudflareAI() {
     return;
   }
 
-  console.log('🚀 Testing Cloudflare AI Workers...');
+  console.log('🚀 Testing Cloudflare AI Gateway...');
   console.log(`📍 Account ID: ${ACCOUNT_ID}`);
-  console.log('🤖 Model: @cf/meta/llama-3-8b-instruct');
+  console.log('🤖 Model: workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast');
 
   try {
     const response = await axios.post(
-      `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`,
+      `https://gateway.ai.cloudflare.com/v1/${ACCOUNT_ID}/default/compat/chat/completions`,
       {
+        model: 'workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast',
         messages: [
           {
             role: 'system',
@@ -32,17 +33,17 @@ async function testCloudflareAI() {
       },
       {
         headers: {
-          'Authorization': `Bearer ${API_TOKEN}`,
+          'cf-aig-authorization': `Bearer ${API_TOKEN}`,
           'Content-Type': 'application/json'
         }
       }
     );
 
-    if (response.data.success) {
+    if (response.data.choices) {
       console.log('✅ Success!');
-      console.log('📝 Response:', response.data.result.response);
+      console.log('📝 Response:', response.data.choices[0].message.content);
     } else {
-      console.error('❌ Cloudflare Error:', response.data.errors);
+      console.error('❌ Cloudflare Error:', response.data);
     }
   } catch (err) {
     console.error('❌ Request Failed:', err.response?.data || err.message);

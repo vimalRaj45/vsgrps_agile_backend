@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { sendMail } = require('../utils/mailer');
 const emailTemplates = require('../utils/emailTemplates');
+const axios = require('axios');
 const authenticate = require('../middleware/authenticate');
 
 async function sendVerificationEmail(req, email, name, token) {

@@ -36,20 +36,23 @@ const permissions = {
 
 const checkPermission = async (companyId, role, permission) => {
   try {
-    const trimmedRole = role ? role.trim() : '';
-    // 1. Check database for custom role permissions
+    const trimmedRole = role ? role.trim().toLowerCase() : '';
+    // 1. Check database for custom role permissions (case-insensitive)
     const { rows } = await pool.query(`
       SELECT rp.permission_key 
       FROM custom_roles cr
       JOIN role_permissions rp ON cr.id = rp.role_id
-      WHERE cr.company_id = $1 AND cr.name = $2 AND rp.permission_key = $3
+      WHERE cr.company_id = $1 AND LOWER(cr.name) = $2 AND rp.permission_key = $3
     `, [companyId, trimmedRole, permission]);
 
     if (rows.length > 0) return true;
 
-    // 2. Fallback to hardcoded system permissions
-    if (permissions[permission] && permissions[permission].includes(trimmedRole)) {
-      return true;
+    // 2. Fallback to hardcoded system permissions (case-insensitive)
+    if (permissions[permission]) {
+      const allowedRoles = permissions[permission].map(r => r.toLowerCase());
+      if (allowedRoles.includes(trimmedRole)) {
+        return true;
+      }
     }
 
     return false;

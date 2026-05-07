@@ -33,6 +33,17 @@ async function taskRoutes(fastify, options) {
     return rows;
   });
 
+  // GET /tasks/:id
+  fastify.get('/:id', async (req, reply) => {
+    const { id } = req.params;
+    const { rows } = await pool.query(
+      'SELECT t.*, u.name as assignee_name, p.name as project_name FROM tasks t LEFT JOIN users u ON t.assigned_to = u.id LEFT JOIN projects p ON t.project_id = p.id WHERE t.id = $1 AND t.company_id = $2',
+      [id, req.user.companyId]
+    );
+    if (rows.length === 0) return reply.code(404).send({ error: 'Task not found' });
+    return rows[0];
+  });
+
   // Helper to calculate total organizational storage (Rows + Files)
   const getTotalStorage = async (companyId) => {
     try {

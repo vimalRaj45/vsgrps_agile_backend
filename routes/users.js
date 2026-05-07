@@ -66,6 +66,125 @@ async function userRoutes(fastify) {
 
     return { success: true };
   });
+  // List all roles for the company
+  fastify.get('/roles', { preHandler: [authorize('role:manage')] }, async (req, reply) => {
+    const { companyId } = req.user;
+    const { rows: roles } = await pool.query(
+      'SELECT id, name, description, is_system FROM custom_roles WHERE company_id = $1 ORDER BY is_system DESC, name ASC',
+      [companyId]
+    );
+
+    // Fetch permissions for each role
+    for (const role of roles) {
+      const { rows: perms } = await pool.query(
+        'SELECT permission_key FROM role_permissions WHERE role_id = $1',
+        [role.id]
+      );
+      role.permissions = perms.map(p => p.permission_key);
+    }
+
+    return roles;
+  });
+
+  // Get all available permissions
+  fastify.get('/permissions', { preHandler: [authorize('role:manage')] }, async (req, reply) => {
+    const { AVAILABLE_PERMISSIONS } = require('../middleware/authorize');
+    return AVAILABLE_PERMISSIONS;
+  });
+
+  // Create a new role
+  fastify.post('/roles', { preHandler: [authorize('role:manage')] }, async (req, reply) => {
+    const { name, description, permissions } = req.body;
+    const { companyId } = req.user;
+
+    if (!name) return reply.code(400).send({ error: 'Role name is required' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        'INSERT INTO custom_roles (company_id, name, description) VALUES ($1, $2, $3) RETURNING id',
+        [companyId, name, description]
+      );
+      const roleId = rows[0].id;
+
+      if (permissions && Array.isArray(permissions)) {
+        for (const perm of permissions) {
+          await client.query(
+            'INSERT INTO role_permissions (role_id, permission_key) VALUES ($1, $2)',
+            [roleId, perm]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+      return { id: roleId, name, description, permissions };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      if (err.code === '23505') return reply.code(400).send({ error: 'Role name already exists' });
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+
+  // Update role permissions
+  fastify.patch('/roles/:id', { preHandler: [authorize('role:manage')] }, async (req, reply) => {
+    const { id } = req.params;
+    const { description, permissions } = req.body;
+    const { companyId } = req.user;
+
+    // Check if role belongs to the same company and is not system
+    const check = await pool.query('SELECT is_system FROM custom_roles WHERE id = $1 AND company_id = $2', [id, companyId]);
+    if (check.rows.length === 0) return reply.code(404).send({ error: 'Role not found' });
+    if (check.rows[0].is_system) return reply.code(403).send({ error: 'Cannot modify system roles' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      if (description) {
+        await client.query('UPDATE custom_roles SET description = $1 WHERE id = $2', [description, id]);
+      }
+
+      if (permissions && Array.isArray(permissions)) {
+        await client.query('DELETE FROM role_permissions WHERE role_id = $1', [id]);
+        for (const perm of permissions) {
+          await client.query(
+            'INSERT INTO role_permissions (role_id, permission_key) VALUES ($1, $2)',
+            [id, perm]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+
+  // Delete a role
+  fastify.delete('/roles/:id', { preHandler: [authorize('role:manage')] }, async (req, reply) => {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    // Check if role belongs to the same company and is not system
+    const check = await pool.query('SELECT is_system, name FROM custom_roles WHERE id = $1 AND company_id = $2', [id, companyId]);
+    if (check.rows.length === 0) return reply.code(404).send({ error: 'Role not found' });
+    if (check.rows[0].is_system) return reply.code(403).send({ error: 'Cannot delete system roles' });
+
+    // Check if any user is assigned to this role
+    const usersWithRole = await pool.query('SELECT id FROM users WHERE company_id = $1 AND role = $2', [companyId, check.rows[0].name]);
+    if (usersWithRole.rows.length > 0) {
+      return reply.code(400).send({ error: 'Cannot delete role while users are assigned to it' });
+    }
+
+    await pool.query('DELETE FROM custom_roles WHERE id = $1', [id]);
+    return { success: true };
+  });
 }
 
 module.exports = userRoutes;

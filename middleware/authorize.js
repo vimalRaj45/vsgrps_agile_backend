@@ -1,3 +1,5 @@
+const pool = require('../db');
+
 const ROLES = {
   ADMIN: 'Admin',
   PRODUCT_OWNER: 'Product Owner',
@@ -28,23 +30,44 @@ const permissions = {
   // Admin Only
   'user:invite': [ROLES.ADMIN],
   'user:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER, ROLES.STAKEHOLDER],
-  'audit:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER, ROLES.STAKEHOLDER]
+  'audit:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER, ROLES.STAKEHOLDER],
+  'role:manage': [ROLES.ADMIN]
 };
 
-const checkPermission = (role, permission) => {
-  if (!permissions[permission]) return false;
-  return permissions[permission].includes(role);
+const checkPermission = async (companyId, role, permission) => {
+  try {
+    // 1. Check database for custom role permissions
+    const { rows } = await pool.query(`
+      SELECT rp.permission_key 
+      FROM custom_roles cr
+      JOIN role_permissions rp ON cr.id = rp.role_id
+      WHERE cr.company_id = $1 AND cr.name = $2 AND rp.permission_key = $3
+    `, [companyId, role, permission]);
+
+    if (rows.length > 0) return true;
+
+    // 2. Fallback to hardcoded system permissions
+    if (permissions[permission] && permissions[permission].includes(role)) {
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    console.error('Permission check error:', err);
+    return false;
+  }
 };
 
 const authorize = (permission) => {
   return async (req, reply) => {
-    const { userRole } = req.user;
+    const { userRole, companyId } = req.user;
     if (!userRole) return reply.code(401).send({ error: 'Unauthorized' });
     
-    if (!checkPermission(userRole, permission)) {
+    const hasPermission = await checkPermission(companyId, userRole, permission);
+    if (!hasPermission) {
       return reply.code(403).send({ error: 'Forbidden: Insufficient permissions' });
     }
   };
 };
 
-module.exports = { ROLES, authorize, checkPermission };
+module.exports = { ROLES, authorize, checkPermission, AVAILABLE_PERMISSIONS: Object.keys(permissions) };

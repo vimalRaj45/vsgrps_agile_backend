@@ -11,7 +11,7 @@ The neural heart of the Sprintora Workspace. A secure, high-performance, and mul
 
 ### 🏢 Multi-Tenant Infrastructure
 - **Secure Isolation**: Strict row-level data segregation ensures zero data leakage between organizations.
-- **Session Governance**: Secure, HTTP-only cookie management with 30-day "Remember Me" persistence.
+- **Stateless Auth**: JWT (JSON Web Tokens) with "Remember Me" support for seamless sessions.
 - **RBAC Enforcement**: Fine-grained role-based permission checks on every API endpoint.
 
 ### 🤝 Communication & Logic
@@ -28,7 +28,7 @@ The neural heart of the Sprintora Workspace. A secure, high-performance, and mul
 - **Framework**: Fastify (Optimized for speed and low overhead)
 - **Database**: PostgreSQL (Neon Serverless)
 - **Query Engine**: Node-Postgres (Raw SQL for performance)
-- **Authentication**: `fastify-session` + `fastify-cookie`
+- **Authentication**: JWT via `@fastify/jwt` (Stateless)
 - **Security**: `fastify-helmet`, rate limiting, and SQL injection protection.
 - **AI Engine**: Groq SDK (Llama-3.3-70B-Versatile)
 
@@ -43,7 +43,7 @@ Create a `.env` file in the root directory:
 ```env
 PORT=5000
 DATABASE_URL=your_postgres_url
-SESSION_SECRET=your_long_random_string
+JWT_SECRET=your_long_random_string
 BREVO_API_KEY=your_brevo_key
 BREVO_SENDER_EMAIL=your_verified_email
 GROQ_API_KEY=your_groq_key

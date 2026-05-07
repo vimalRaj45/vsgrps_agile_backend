@@ -9,7 +9,7 @@ async function taskRoutes(fastify, options) {
   fastify.get('/', async (req, reply) => {
     const { status, priority, assigned_to, project_id } = req.query;
     let query = 'SELECT t.*, u.name as assignee_name, p.name as project_name FROM tasks t LEFT JOIN users u ON t.assigned_to = u.id LEFT JOIN projects p ON t.project_id = p.id WHERE t.company_id = $1';
-    const params = [req.session.companyId];
+    const params = [req.user.companyId];
 
     if (status) {
       params.push(status);
@@ -68,7 +68,7 @@ async function taskRoutes(fastify, options) {
   fastify.post('/', { preHandler: [authorize('task:create')] }, async (req, reply) => {
     // Check Global storage quota (10MB)
     const LIMIT = 10 * 1024 * 1024;
-    const currentTotal = await getTotalStorage(req.session.companyId);
+    const currentTotal = await getTotalStorage(req.user.companyId);
     if (currentTotal > LIMIT) {
       return reply.code(400).send({ error: 'Organizational storage limit reached (20MB). Please contact VSGRPS to upgrade your limits.' });
     }
@@ -77,23 +77,23 @@ async function taskRoutes(fastify, options) {
     const finalAssignedTo = assigned_to === '' ? null : assigned_to;
     const { rows } = await pool.query(
       'INSERT INTO tasks (company_id, project_id, title, description, status, priority, assigned_to, due_date, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [req.session.companyId, project_id, title, description, status || 'To Do', priority || 'Medium', finalAssignedTo, due_date, req.session.userId]
+      [req.user.companyId, project_id, title, description, status || 'To Do', priority || 'Medium', finalAssignedTo, due_date, req.user.userId]
     );
 
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'task', rows[0].id, 'created', JSON.stringify(rows[0])]
+      [req.user.companyId, req.user.userId, 'task', rows[0].id, 'created', JSON.stringify(rows[0])]
     );
 
     // Notification if assigned
-    if (assigned_to && assigned_to !== req.session.userId) {
+    if (assigned_to && assigned_to !== req.user.userId) {
       const { sendPushNotification } = require('../utils/push');
-      const message = `${req.session.userName} assigned you a task: ${title}`;
+      const message = `${req.user.userName} assigned you a task: ${title}`;
       
       await pool.query(
         'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
-        [req.session.companyId, assigned_to, 'task_assigned', message, `/tasks?id=${rows[0].id}`]
+        [req.user.companyId, assigned_to, 'task_assigned', message, `/tasks?id=${rows[0].id}`]
       );
 
       await sendPushNotification(assigned_to, {
@@ -113,7 +113,7 @@ async function taskRoutes(fastify, options) {
     const updates = req.body;
     
     // Agile Master Enforcements:
-    const isPrivileged = [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER].includes(req.session.userRole);
+    const isPrivileged = [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER].includes(req.user.userRole);
     const coreFields = ['title', 'description', 'due_date', 'priority', 'project_id', 'assigned_to'];
     const attemptedCoreUpdate = Object.keys(updates).some(f => coreFields.includes(f));
 
@@ -122,14 +122,14 @@ async function taskRoutes(fastify, options) {
     }
 
     // Workflow Restriction: Only Admins can mark tasks as 'Done'
-    if (updates.status === 'Done' && req.session.userRole !== ROLES.ADMIN) {
+    if (updates.status === 'Done' && req.user.userRole !== ROLES.ADMIN) {
       return reply.code(403).send({ error: 'Task completion (Done) must be verified by an Administrator.' });
     }
 
     // Verify assigned user for status updates
     if (!isPrivileged && updates.status) {
       const taskCheck = await pool.query('SELECT assigned_to FROM tasks WHERE id = $1', [id]);
-      if (taskCheck.rows.length === 0 || taskCheck.rows[0].assigned_to !== req.session.userId) {
+      if (taskCheck.rows.length === 0 || taskCheck.rows[0].assigned_to !== req.user.userId) {
         return reply.code(403).send({ error: 'You can only update the status of tasks assigned to you.' });
       }
     }
@@ -150,7 +150,7 @@ async function taskRoutes(fastify, options) {
 
     const { rows } = await pool.query(
       `UPDATE tasks SET ${setClause}, updated_at = NOW() WHERE id = $1 AND company_id = $${fields.length + 2} RETURNING *`,
-      [...values, req.session.companyId]
+      [...values, req.user.companyId]
     );
 
     if (rows.length === 0) return reply.code(404).send({ error: 'Task not found' });
@@ -158,7 +158,7 @@ async function taskRoutes(fastify, options) {
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'task', id, 'updated', JSON.stringify(updates)]
+      [req.user.companyId, req.user.userId, 'task', id, 'updated', JSON.stringify(updates)]
     );
 
     return rows[0];
@@ -180,13 +180,13 @@ async function taskRoutes(fastify, options) {
     const { content } = req.body;
     const { rows } = await pool.query(
       'INSERT INTO task_comments (task_id, user_id, content) VALUES ($1, $2, $3) RETURNING *',
-      [id, req.session.userId, content]
+      [id, req.user.userId, content]
     );
 
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'comment', rows[0].id, 'created', JSON.stringify({ task_id: id, content: content.substring(0, 50) })]
+      [req.user.companyId, req.user.userId, 'comment', rows[0].id, 'created', JSON.stringify({ task_id: id, content: content.substring(0, 50) })]
     );
 
     // Parse mentions (@username_with_underscores)
@@ -195,14 +195,14 @@ async function taskRoutes(fastify, options) {
       const { sendPushNotification } = require('../utils/push');
       for (const m of mentions) {
         const username = m.substring(1);
-        const userRes = await pool.query("SELECT id FROM users WHERE REPLACE(name, ' ', '_') = $1 AND company_id = $2", [username, req.session.companyId]);
+        const userRes = await pool.query("SELECT id FROM users WHERE REPLACE(name, ' ', '_') = $1 AND company_id = $2", [username, req.user.companyId]);
         if (userRes.rows.length > 0) {
           const mentionedId = userRes.rows[0].id;
-          const message = `${req.session.userName} mentioned you in a comment.`;
+          const message = `${req.user.userName} mentioned you in a comment.`;
           
           await pool.query(
             'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
-            [req.session.companyId, mentionedId, 'mention', message, `/tasks?id=${id}`]
+            [req.user.companyId, mentionedId, 'mention', message, `/tasks?id=${id}`]
           );
           
           await sendPushNotification(mentionedId, {
@@ -234,7 +234,7 @@ async function taskRoutes(fastify, options) {
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'subtask', rows[0].id, 'created', JSON.stringify({ task_id: id, title })]
+      [req.user.companyId, req.user.userId, 'subtask', rows[0].id, 'created', JSON.stringify({ task_id: id, title })]
     );
 
     return rows[0];
@@ -249,7 +249,7 @@ async function taskRoutes(fastify, options) {
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'subtask', subtaskId, 'updated', JSON.stringify({ completed })]
+      [req.user.companyId, req.user.userId, 'subtask', subtaskId, 'updated', JSON.stringify({ completed })]
     );
 
     return rows[0];
@@ -260,7 +260,7 @@ async function taskRoutes(fastify, options) {
     const { subtaskId } = req.params;
     
     // RBAC: Only Admin, PO, or SM can delete subtasks
-    const isPrivileged = [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER].includes(req.session.userRole);
+    const isPrivileged = [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER].includes(req.user.userRole);
     if (!isPrivileged) {
       return reply.code(403).send({ error: 'You do not have permission to delete subtasks.' });
     }
@@ -272,7 +272,7 @@ async function taskRoutes(fastify, options) {
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'subtask', subtaskId, 'deleted', JSON.stringify(rows[0])]
+      [req.user.companyId, req.user.userId, 'subtask', subtaskId, 'deleted', JSON.stringify(rows[0])]
     );
 
     return { success: true };
@@ -280,7 +280,7 @@ async function taskRoutes(fastify, options) {
 
   // GET /labels
   fastify.get('/labels', async (req, reply) => {
-    const { rows } = await pool.query('SELECT * FROM task_labels WHERE company_id = $1', [req.session.companyId]);
+    const { rows } = await pool.query('SELECT * FROM task_labels WHERE company_id = $1', [req.user.companyId]);
     return rows;
   });
 
@@ -289,13 +289,13 @@ async function taskRoutes(fastify, options) {
     const { name, color, project_id } = req.body;
     const { rows } = await pool.query(
       'INSERT INTO task_labels (company_id, project_id, name, color) VALUES ($1, $2, $3, $4) RETURNING *',
-      [req.session.companyId, project_id, name, color]
+      [req.user.companyId, project_id, name, color]
     );
 
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'label', rows[0].id, 'created', JSON.stringify({ name, color })]
+      [req.user.companyId, req.user.userId, 'label', rows[0].id, 'created', JSON.stringify({ name, color })]
     );
 
     return rows[0];
@@ -309,7 +309,7 @@ async function taskRoutes(fastify, options) {
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'label_assignment', id, 'added', JSON.stringify({ label_id: labelId })]
+      [req.user.companyId, req.user.userId, 'label_assignment', id, 'added', JSON.stringify({ label_id: labelId })]
     );
 
     return { success: true };
@@ -317,22 +317,22 @@ async function taskRoutes(fastify, options) {
   
   // DELETE /tasks/:id
   fastify.delete('/:id', async (req, reply) => {
-    if (req.session.userRole !== 'Admin') {
+    if (req.user.userRole !== 'Admin') {
       return reply.code(403).send({ error: 'Only Administrators can delete tasks.' });
     }
     
     const { id } = req.params;
     
     // Get task before delete for audit log
-    const taskRes = await pool.query('SELECT * FROM tasks WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+    const taskRes = await pool.query('SELECT * FROM tasks WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
     if (taskRes.rows.length === 0) return reply.code(404).send({ error: 'Task not found' });
     
-    await pool.query('DELETE FROM tasks WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+    await pool.query('DELETE FROM tasks WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
     
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'task', id, 'deleted', JSON.stringify(taskRes.rows[0])]
+      [req.user.companyId, req.user.userId, 'task', id, 'deleted', JSON.stringify(taskRes.rows[0])]
     );
     
     return { success: true };

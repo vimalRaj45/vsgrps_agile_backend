@@ -10,7 +10,7 @@ async function meetingRoutes(fastify, options) {
   fastify.get('/', async (req, reply) => {
     const { project_id } = req.query;
     let query = 'SELECT m.*, p.name as project_name FROM meetings m LEFT JOIN projects p ON m.project_id = p.id WHERE m.company_id = $1';
-    const params = [req.session.companyId];
+    const params = [req.user.companyId];
 
     if (project_id) {
       params.push(project_id);
@@ -27,7 +27,7 @@ async function meetingRoutes(fastify, options) {
     const { id } = req.params;
     const { rows } = await pool.query(
       'SELECT m.*, p.name as project_name FROM meetings m LEFT JOIN projects p ON m.project_id = p.id WHERE m.id = $1 AND m.company_id = $2',
-      [id, req.session.companyId]
+      [id, req.user.companyId]
     );
     if (rows.length === 0) return reply.code(404).send({ error: 'Meeting not found' });
     
@@ -47,7 +47,7 @@ async function meetingRoutes(fastify, options) {
       await client.query('BEGIN');
       const res = await client.query(
         'INSERT INTO meetings (company_id, project_id, title, scheduled_at, agenda, created_by, meeting_link, outcome) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-        [req.session.companyId, project_id, title, scheduled_at, agenda, req.session.userId, meeting_link, outcome]
+        [req.user.companyId, project_id, title, scheduled_at, agenda, req.user.userId, meeting_link, outcome]
       );
       const meeting = res.rows[0];
 
@@ -56,7 +56,7 @@ async function meetingRoutes(fastify, options) {
           await client.query('INSERT INTO meeting_attendees (meeting_id, user_id) VALUES ($1, $2)', [meeting.id, userId]);
           await client.query(
             'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
-            [req.session.companyId, userId, 'meeting_added', `You have been added to meeting: ${title}`, `/meetings/${meeting.id}`]
+            [req.user.companyId, userId, 'meeting_added', `You have been added to meeting: ${title}`, `/meetings/${meeting.id}`]
           );
           
           // Send Push Notification
@@ -73,7 +73,7 @@ async function meetingRoutes(fastify, options) {
       // Audit log
       await pool.query(
         'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.session.companyId, req.session.userId, 'meeting', meeting.id, 'created', JSON.stringify({ title, scheduled_at })]
+        [req.user.companyId, req.user.userId, 'meeting', meeting.id, 'created', JSON.stringify({ title, scheduled_at })]
       );
 
       return meeting;
@@ -89,7 +89,7 @@ async function meetingRoutes(fastify, options) {
   fastify.patch('/:id', { preHandler: [authorize('meeting:update')] }, async (req, reply) => {
     const { id } = req.params;
     const updates = req.body;
-    const { companyId, userId } = req.session;
+    const { companyId, userId } = req.user;
 
     if (!companyId) return reply.code(401).send({ error: 'Session expired' });
 
@@ -139,7 +139,7 @@ async function meetingRoutes(fastify, options) {
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'meeting_note', id, 'created', JSON.stringify({ section, content: content.substring(0, 50) })]
+      [req.user.companyId, req.user.userId, 'meeting_note', id, 'created', JSON.stringify({ section, content: content.substring(0, 50) })]
     );
 
     return rows[0];

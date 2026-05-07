@@ -34,7 +34,7 @@ async function inviteRoutes(fastify, options) {
 
     if (rows.length > 0) {
       const existingUser = rows[0];
-      if (existingUser.company_id === req.session.companyId) {
+      if (existingUser.company_id === req.user.companyId) {
         return { exists: true, sameOrg: true };
       } else {
         return { exists: true, sameOrg: false, companyName: existingUser.company_name };
@@ -51,13 +51,13 @@ async function inviteRoutes(fastify, options) {
 
     // Get company and inviter info for email
     const [companyRes, inviterRes] = await Promise.all([
-      pool.query('SELECT name FROM companies WHERE id = $1', [req.session.companyId]),
-      pool.query('SELECT name FROM users WHERE id = $1', [req.session.userId])
+      pool.query('SELECT name FROM companies WHERE id = $1', [req.user.companyId]),
+      pool.query('SELECT name FROM users WHERE id = $1', [req.user.userId])
     ]);
 
     const { rows } = await pool.query(
       'INSERT INTO invites (company_id, email, role, token, invited_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.session.companyId, email, role || 'Developer', token, req.session.userId]
+      [req.user.companyId, email, role || 'Developer', token, req.user.userId]
     );
 
     // Send Invite Email

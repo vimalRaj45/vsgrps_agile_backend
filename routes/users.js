@@ -7,7 +7,7 @@ async function userRoutes(fastify) {
 
   // List all users in the same company
   fastify.get('/', { preHandler: [authorize('user:view')] }, async (req, reply) => {
-    const { companyId } = req.session;
+    const { companyId } = req.user;
     const result = await pool.query(
       'SELECT id, name, email, role, avatar_url, is_verified, invite_accepted, created_at FROM users WHERE company_id = $1 ORDER BY created_at DESC',
       [companyId]
@@ -19,7 +19,7 @@ async function userRoutes(fastify) {
   fastify.patch('/:id', { preHandler: [authorize('audit:view')] }, async (req, reply) => {
     const { id } = req.params;
     const { name, email, role } = req.body;
-    const { companyId } = req.session;
+    const { companyId } = req.user;
 
     // Check if user belongs to the same company
     const check = await pool.query('SELECT company_id FROM users WHERE id = $1', [id]);
@@ -35,7 +35,7 @@ async function userRoutes(fastify) {
     // Log the action
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [companyId, req.session.userId, 'user', id, 'updated', JSON.stringify(req.body)]
+      [companyId, req.user.userId, 'user', id, 'updated', JSON.stringify(req.body)]
     );
 
     return result.rows[0];
@@ -44,7 +44,7 @@ async function userRoutes(fastify) {
   // Delete user
   fastify.delete('/:id', { preHandler: [authorize('audit:view')] }, async (req, reply) => {
     const { id } = req.params;
-    const { companyId, userId } = req.session;
+    const { companyId, userId } = req.user;
 
     if (id === userId) {
       return reply.code(400).send({ error: 'Cannot delete yourself' });

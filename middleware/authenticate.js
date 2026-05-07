@@ -1,5 +1,7 @@
 module.exports = async function authenticate(req, reply) {
-  if (!req.session.userId) {
+  try {
+    await req.jwtVerify();
+  } catch (err) {
     return reply.code(401).send({ error: 'Unauthorized' });
   }
 };

@@ -41,8 +41,8 @@ async function backupRoutes(fastify, options) {
   }
 
   fastify.get('/sql', { preHandler: [authorize('audit:view')] }, async (req, reply) => {
-    const { companyId } = req.session;
-    if (req.session.userRole !== 'Admin') return reply.code(403).send({ error: 'Forbidden' });
+    const { companyId } = req.user;
+    if (req.user.userRole !== 'Admin') return reply.code(403).send({ error: 'Forbidden' });
 
     const queries = [
       { name: 'companies', query: 'SELECT * FROM companies WHERE id = $1', filter: [companyId] },
@@ -73,7 +73,7 @@ async function backupRoutes(fastify, options) {
   });
 
   fastify.get('/master', async (req, reply) => {
-    if (!req.session.isSuperAdmin) return reply.code(403).send({ error: 'Unauthorized' });
+    if (!req.user.isSuperAdmin) return reply.code(403).send({ error: 'Unauthorized' });
 
     const tables = [
       'companies', 'users', 'invites', 'projects', 'project_members', 

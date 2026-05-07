@@ -15,7 +15,7 @@ async function projectRoutes(fastify, options) {
        FROM projects p 
        WHERE p.company_id = $1 AND p.archived = $2 
        ORDER BY p.pinned DESC, p.created_at DESC`,
-      [req.session.companyId, archived === 'true']
+      [req.user.companyId, archived === 'true']
     );
     return rows;
   });
@@ -23,7 +23,7 @@ async function projectRoutes(fastify, options) {
   // GET /projects/:id
   fastify.get('/:id', async (req, reply) => {
     const { id } = req.params;
-    const { rows } = await pool.query('SELECT * FROM projects WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+    const { rows } = await pool.query('SELECT * FROM projects WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
     if (rows.length === 0) return reply.code(404).send({ error: 'Project not found' });
     return rows[0];
   });
@@ -63,7 +63,7 @@ async function projectRoutes(fastify, options) {
   fastify.post('/', { preHandler: [authorize('project:create')] }, async (req, reply) => {
     // Check Global storage quota (10MB)
     const LIMIT = 10 * 1024 * 1024;
-    const currentTotal = await getTotalStorage(req.session.companyId);
+    const currentTotal = await getTotalStorage(req.user.companyId);
     if (currentTotal > LIMIT) {
       return reply.code(400).send({ error: 'Organizational storage limit reached (20MB). Please contact VSGRPS to upgrade your limits.' });
     }
@@ -71,13 +71,13 @@ async function projectRoutes(fastify, options) {
     const { name, description, cover_color, cover_icon } = req.body;
     const { rows } = await pool.query(
       'INSERT INTO projects (company_id, name, description, cover_color, cover_icon, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [req.session.companyId, name, description, cover_color || '#1976d2', cover_icon || 'folder', req.session.userId]
+      [req.user.companyId, name, description, cover_color || '#1976d2', cover_icon || 'folder', req.user.userId]
     );
     
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'project', rows[0].id, 'created', JSON.stringify(rows[0])]
+      [req.user.companyId, req.user.userId, 'project', rows[0].id, 'created', JSON.stringify(rows[0])]
     );
 
     return rows[0];
@@ -87,7 +87,7 @@ async function projectRoutes(fastify, options) {
   fastify.patch('/:id', { preHandler: [authorize('project:update')] }, async (req, reply) => {
     const { id } = req.params;
     const updates = req.body;
-    const { companyId, userId } = req.session;
+    const { companyId, userId } = req.user;
 
     if (!companyId) return reply.code(401).send({ error: 'Session expired' });
 
@@ -151,7 +151,7 @@ async function projectRoutes(fastify, options) {
       // Audit log
       await pool.query(
         'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.session.companyId, req.session.userId, 'project_member', id, 'added', JSON.stringify({ user_id })]
+        [req.user.companyId, req.user.userId, 'project_member', id, 'added', JSON.stringify({ user_id })]
       );
 
       return { success: true };
@@ -169,7 +169,7 @@ async function projectRoutes(fastify, options) {
     // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'project_member', id, 'removed', JSON.stringify({ user_id: userId })]
+      [req.user.companyId, req.user.userId, 'project_member', id, 'removed', JSON.stringify({ user_id: userId })]
     );
 
     return { success: true };
@@ -178,7 +178,7 @@ async function projectRoutes(fastify, options) {
   // DELETE /projects/:id
   fastify.delete('/:id', { preHandler: [authorize('project:delete')] }, async (req, reply) => {
     const { id } = req.params;
-    const { companyId, userId } = req.session;
+    const { companyId, userId } = req.user;
 
     const dbClient = await pool.connect();
     try {

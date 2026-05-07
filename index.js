@@ -6,10 +6,10 @@ const fastify = require('fastify')({
 
 // Environment Variables
 const PORT = process.env.PORT || 3000;
-const SESSION_SECRET = process.env.SESSION_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 
-if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
-  console.error('❌ CRITICAL: SESSION_SECRET must be at least 32 characters long and defined in .env');
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  console.error('❌ CRITICAL: JWT_SECRET must be at least 32 characters long and defined in .env');
   process.exit(1);
 }
 
@@ -31,20 +31,42 @@ fastify.register(require('@fastify/rate-limit'), {
   timeWindow: '1 minute'
 });
 
-fastify.register(require('@fastify/cookie'));
-const sessionStore = require('./sessionStore');
+fastify.register(require('@fastify/jwt'), {
+  secret: JWT_SECRET
+});
 
-fastify.register(require('@fastify/session'), {
-  secret: SESSION_SECRET,
-  store: sessionStore,
-  cookieName: 'session',
-  saveUninitialized: false, // Don't create sessions for guests
+// Google OAuth
+fastify.register(require('@fastify/oauth2'), {
+  name: 'googleOAuth2',
+  scope: ['profile', 'email'],
+  credentials: {
+    client: {
+      id: process.env.GOOGLE_CLIENT_ID,
+      secret: process.env.GOOGLE_CLIENT_SECRET
+    },
+    auth: require('@fastify/oauth2').GOOGLE_CONFIGURATION
+  },
+  startRedirectPath: '/auth/login/google',
+  callbackUri: `${process.env.BASE_URL}/auth/login/google/callback`,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours default
+    sameSite: 'lax'
   }
+});
+
+// GitHub OAuth
+fastify.register(require('@fastify/oauth2'), {
+  name: 'githubOAuth2',
+  scope: ['user:email'],
+  credentials: {
+    client: {
+      id: process.env.GITHUB_CLIENT_ID,
+      secret: process.env.GITHUB_CLIENT_SECRET
+    },
+    auth: require('@fastify/oauth2').GITHUB_CONFIGURATION
+  },
+  startRedirectPath: '/auth/login/github',
+  callbackUri: `${process.env.BASE_URL}/auth/login/github/callback`
 });
 
 

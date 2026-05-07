@@ -8,7 +8,7 @@ async function reportRoutes(fastify, options) {
   // GET /reports/summary
   fastify.get('/summary', async (req, reply) => {
     const { startDate, endDate } = req.query;
-    const { companyId } = req.session;
+    const { companyId } = req.user;
 
     if (!startDate || !endDate) {
       return reply.code(400).send({ error: 'Start and end dates are required' });
@@ -66,7 +66,7 @@ async function reportRoutes(fastify, options) {
   // GET /reports/project/:id
   fastify.get('/project/:id', async (req, reply) => {
     const { id } = req.params;
-    const { companyId } = req.session;
+    const { companyId } = req.user;
 
     try {
       // 1. Project Info & Timeline

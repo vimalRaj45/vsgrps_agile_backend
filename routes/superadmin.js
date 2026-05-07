@@ -68,22 +68,32 @@ async function superAdminRoutes(fastify, options) {
       return reply.code(401).send({ error: `Invalid access code. ${MAX_OTP_ATTEMPTS - otpAttempts} attempts remaining.` });
     }
 
-    // Success - mark session as Super Admin
-    req.session.isSuperAdmin = true;
+    // Success - sign a token for Super Admin
+    const token = await reply.jwtSign({
+      email: email,
+      isSuperAdmin: true
+    }, {
+      expiresIn: '2h'
+    });
+    
     currentOTP = null; // Clear OTP after use
     otpAttempts = 0;
     
-    return { success: true, message: 'Super Admin access granted.' };
+    return { success: true, message: 'Super Admin access granted.', token };
   });
-
+ 
   // Check Super Admin Status
   fastify.get('/status', async (req, reply) => {
-    return { isSuperAdmin: !!req.session.isSuperAdmin };
+    try {
+      const decoded = await req.jwtVerify();
+      return { isSuperAdmin: !!decoded.isSuperAdmin };
+    } catch (err) {
+      return { isSuperAdmin: false };
+    }
   });
-
+ 
   // Logout Super Admin
   fastify.post('/logout', async (req, reply) => {
-    req.session.isSuperAdmin = false;
     return { success: true };
   });
 }

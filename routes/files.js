@@ -103,7 +103,7 @@ async function fileRoutes(fastify, options) {
 
       // Check Global asset storage quota (200MB)
       const LIMIT = 200 * 1024 * 1024;
-      const currentAssetTotal = await getAssetStorage(req.session.companyId);
+      const currentAssetTotal = await getAssetStorage(req.user.companyId);
 
       if (currentAssetTotal + fileSize > LIMIT) {
         return reply.code(400).send({ error: 'Organizational asset storage limit reached (200MB). Files do not affect Workspace Health.' });
@@ -120,11 +120,11 @@ async function fileRoutes(fastify, options) {
       const { rows } = await pool.query(
         'INSERT INTO files (company_id, project_id, task_id, meeting_id, uploaded_by, filename, mimetype, size, is_private, shared_with) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, filename',
         [
-          req.session.companyId, 
+          req.user.companyId, 
           pid, 
           tid, 
           mid, 
-          req.session.userId, 
+          req.user.userId, 
           data.filename, 
           data.mimetype, 
           fileSize, 
@@ -134,7 +134,7 @@ async function fileRoutes(fastify, options) {
       );
 
       const fileId = rows[0].id;
-      const r2Key = `files/${req.session.companyId}/${fileId}/${data.filename}`;
+      const r2Key = `files/${req.user.companyId}/${fileId}/${data.filename}`;
 
       // Upload to Cloudflare R2
       await r2Client.send(new PutObjectCommand({
@@ -151,18 +151,18 @@ async function fileRoutes(fastify, options) {
       // Audit log
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'file', rows[0].id, 'uploaded', JSON.stringify({ filename: data.filename, size: fileSize })]
+      [req.user.companyId, req.user.userId, 'file', rows[0].id, 'uploaded', JSON.stringify({ filename: data.filename, size: fileSize })]
     );
 
     // Notifications for shared users
     if (is_private && shared_with && shared_with.length > 0) {
       const { sendPushNotification } = require('../utils/push');
-      const message = `${req.session.userName} shared a file with you: ${data.filename}`;
+      const message = `${req.user.userName} shared a file with you: ${data.filename}`;
       for (const uid of shared_with) {
-        if (uid === req.session.userId) continue;
+        if (uid === req.user.userId) continue;
         await pool.query(
           'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
-          [req.session.companyId, uid, 'file_shared', message, `/files?id=${rows[0].id}`]
+          [req.user.companyId, uid, 'file_shared', message, `/files?id=${rows[0].id}`]
         );
         await sendPushNotification(uid, {
           title: 'File Shared',
@@ -194,7 +194,7 @@ async function fileRoutes(fastify, options) {
         WHERE f.company_id = $1 
         AND (f.is_private = FALSE OR f.uploaded_by = $2 OR $2 = ANY(f.shared_with))
       `;
-      const params = [req.session.companyId, req.session.userId];
+      const params = [req.user.companyId, req.user.userId];
 
       if (project_id && project_id !== 'null' && project_id !== '') {
         params.push(project_id);
@@ -221,16 +221,16 @@ async function fileRoutes(fastify, options) {
   fastify.get('/:id/download', async (req, reply) => {
     try {
       const { id } = req.params;
-      const { rows } = await pool.query('SELECT * FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+      const { rows } = await pool.query('SELECT * FROM files WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
       if (rows.length === 0) return reply.code(404).send({ error: 'File not found' });
 
       const file = rows[0];
-      const r2Key = `files/${req.session.companyId}/${file.id}/${file.filename}`;
+      const r2Key = `files/${req.user.companyId}/${file.id}/${file.filename}`;
 
       // Audit log
       await pool.query(
         'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.session.companyId, req.session.userId, 'file', id, 'downloaded', JSON.stringify({ filename: file.filename })]
+        [req.user.companyId, req.user.userId, 'file', id, 'downloaded', JSON.stringify({ filename: file.filename })]
       );
 
       const response = await r2Client.send(new GetObjectCommand({
@@ -272,24 +272,24 @@ async function fileRoutes(fastify, options) {
 
       const { rows } = await pool.query(
         'INSERT INTO links (company_id, project_id, task_id, meeting_id, added_by, url, title, favicon_url, is_private, shared_with) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
-        [req.session.companyId, pid, tid, mid, req.session.userId, url, title, favicon_url, is_private || false, shared_with || null]
+        [req.user.companyId, pid, tid, mid, req.user.userId, url, title, favicon_url, is_private || false, shared_with || null]
       );
 
       // Audit log
       await pool.query(
         'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.session.companyId, req.session.userId, 'link', rows[0].id, 'created', JSON.stringify({ url, title })]
+        [req.user.companyId, req.user.userId, 'link', rows[0].id, 'created', JSON.stringify({ url, title })]
       );
 
       // Notifications for shared users
       if (is_private && shared_with && shared_with.length > 0) {
         const { sendPushNotification } = require('../utils/push');
-        const message = `${req.session.userName} shared a link with you: ${title}`;
+        const message = `${req.user.userName} shared a link with you: ${title}`;
         for (const uid of shared_with) {
-          if (uid === req.session.userId) continue;
+          if (uid === req.user.userId) continue;
           await pool.query(
             'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
-            [req.session.companyId, uid, 'link_shared', message, `/files`]
+            [req.user.companyId, uid, 'link_shared', message, `/files`]
           );
           await sendPushNotification(uid, {
             title: 'Link Shared',
@@ -320,7 +320,7 @@ async function fileRoutes(fastify, options) {
         WHERE l.company_id = $1
         AND (l.is_private = FALSE OR l.added_by = $2 OR $2 = ANY(l.shared_with))
       `;
-      const params = [req.session.companyId, req.session.userId];
+      const params = [req.user.companyId, req.user.userId];
 
       if (project_id && project_id !== 'null' && project_id !== '') {
         params.push(project_id);
@@ -347,16 +347,16 @@ async function fileRoutes(fastify, options) {
   fastify.delete('/:id', async (req, reply) => {
     try {
       const { id } = req.params;
-      const { rows } = await pool.query('SELECT id, uploaded_by, filename FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+      const { rows } = await pool.query('SELECT id, uploaded_by, filename FROM files WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
       
       if (rows.length === 0) return reply.code(404).send({ error: 'File not found' });
       
       const file = rows[0];
-      if (file.uploaded_by !== req.session.userId && req.session.userRole !== 'Admin') {
+      if (file.uploaded_by !== req.user.userId && req.user.userRole !== 'Admin') {
         return reply.code(403).send({ error: 'You can only delete files you uploaded.' });
       }
 
-      const r2Key = `files/${req.session.companyId}/${file.id}/${file.filename}`;
+      const r2Key = `files/${req.user.companyId}/${file.id}/${file.filename}`;
 
       // Delete from Cloudflare R2
       try {
@@ -368,12 +368,12 @@ async function fileRoutes(fastify, options) {
         console.warn('Failed to delete from R2, proceeding with DB deletion:', r2Err);
       }
 
-      await pool.query('DELETE FROM files WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+      await pool.query('DELETE FROM files WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
 
       // Audit log
       await pool.query(
         'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.session.companyId, req.session.userId, 'file', id, 'deleted', JSON.stringify({ filename: file.filename })]
+        [req.user.companyId, req.user.userId, 'file', id, 'deleted', JSON.stringify({ filename: file.filename })]
       );
 
       return { success: true };
@@ -387,21 +387,21 @@ async function fileRoutes(fastify, options) {
   fastify.delete('/links/:id', async (req, reply) => {
     try {
       const { id } = req.params;
-      const { rows } = await pool.query('SELECT added_by, title FROM links WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+      const { rows } = await pool.query('SELECT added_by, title FROM links WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
       
       if (rows.length === 0) return reply.code(404).send({ error: 'Link not found' });
       
       const link = rows[0];
-      if (link.added_by !== req.session.userId && req.session.userRole !== 'Admin') {
+      if (link.added_by !== req.user.userId && req.user.userRole !== 'Admin') {
         return reply.code(403).send({ error: 'You can only delete links you added.' });
       }
 
-      await pool.query('DELETE FROM links WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+      await pool.query('DELETE FROM links WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
 
       // Audit log
       await pool.query(
         'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.session.companyId, req.session.userId, 'link', id, 'deleted', JSON.stringify({ title: link.title })]
+        [req.user.companyId, req.user.userId, 'link', id, 'deleted', JSON.stringify({ title: link.title })]
       );
 
       return { success: true };
@@ -413,8 +413,8 @@ async function fileRoutes(fastify, options) {
 
   // GET /files/storage
   fastify.get('/storage', async (req, reply) => {
-    const assetUsed = await getAssetStorage(req.session.companyId);
-    const healthPercent = await getWorkspaceHealth(req.session.companyId);
+    const assetUsed = await getAssetStorage(req.user.companyId);
+    const healthPercent = await getWorkspaceHealth(req.user.companyId);
     const limit = 200 * 1024 * 1024; // 200MB
     
     return {

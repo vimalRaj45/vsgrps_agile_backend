@@ -8,7 +8,7 @@ async function searchRoutes(fastify, options) {
     const { q } = req.query;
     if (!q) return { tasks: [], projects: [], meetings: [] };
 
-    const companyId = req.session.companyId;
+    const companyId = req.user.companyId;
     const searchTerm = `%${q}%`;
 
     const tasks = await pool.query(

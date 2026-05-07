@@ -38,7 +38,7 @@ const checkPermission = (role, permission) => {
 
 const authorize = (permission) => {
   return async (req, reply) => {
-    const { userRole } = req.session;
+    const { userRole } = req.user;
     if (!userRole) return reply.code(401).send({ error: 'Unauthorized' });
     
     if (!checkPermission(userRole, permission)) {

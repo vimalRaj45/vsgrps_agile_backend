@@ -8,7 +8,7 @@ async function notificationRoutes(fastify, options) {
   fastify.get('/', async (req, reply) => {
     const { rows } = await pool.query(
       'SELECT * FROM notifications WHERE user_id = $1 ORDER BY read ASC, created_at DESC LIMIT 50',
-      [req.session.userId]
+      [req.user.userId]
     );
     return rows;
   });
@@ -19,7 +19,7 @@ async function notificationRoutes(fastify, options) {
     const { read } = req.body;
     const { rows } = await pool.query(
       'UPDATE notifications SET read = $1 WHERE id = $2 AND user_id = $3 RETURNING *',
-      [read, id, req.session.userId]
+      [read, id, req.user.userId]
     );
     return rows[0];
   });
@@ -28,7 +28,7 @@ async function notificationRoutes(fastify, options) {
   fastify.post('/mark-all-read', async (req, reply) => {
     await pool.query(
       'UPDATE notifications SET read = true WHERE user_id = $1',
-      [req.session.userId]
+      [req.user.userId]
     );
     return { success: true };
   });
@@ -40,7 +40,7 @@ async function notificationRoutes(fastify, options) {
 
     await pool.query(
       'INSERT INTO push_subscriptions (user_id, subscription) VALUES ($1, $2) ON CONFLICT (user_id, subscription) DO NOTHING',
-      [req.session.userId, JSON.stringify(subscription)]
+      [req.user.userId, JSON.stringify(subscription)]
     );
 
     return { success: true };
@@ -49,7 +49,7 @@ async function notificationRoutes(fastify, options) {
   // POST /notifications/broadcast-admin
   fastify.post('/broadcast-admin', async (req, reply) => {
     try {
-      if (req.session.userRole !== 'Admin') {
+      if (req.user.userRole !== 'Admin') {
         return reply.code(403).send({ error: 'Only administrators can broadcast notifications' });
       }
 
@@ -59,18 +59,18 @@ async function notificationRoutes(fastify, options) {
       const { broadcastPushNotification } = require('../utils/push');
 
       // 1. Create in-app notifications for everyone in the company
-      const { rows: members } = await pool.query('SELECT id FROM users WHERE company_id = $1', [req.session.companyId]);
+      const { rows: members } = await pool.query('SELECT id FROM users WHERE company_id = $1', [req.user.companyId]);
       
       const notificationPromises = members.map(member => 
         pool.query(
           'INSERT INTO notifications (company_id, user_id, type, message, link) VALUES ($1, $2, $3, $4, $5)',
-          [req.session.companyId, member.id, 'broadcast', message, link || '/']
+          [req.user.companyId, member.id, 'broadcast', message, link || '/']
         )
       );
       await Promise.all(notificationPromises);
 
       // 2. Send push notifications
-      await broadcastPushNotification(req.session.companyId, {
+      await broadcastPushNotification(req.user.companyId, {
         title: 'Organization Announcement',
         body: message,
         icon: '/logo192.png',

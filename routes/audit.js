@@ -9,7 +9,7 @@ async function auditRoutes(fastify, options) {
   fastify.get('/', { preHandler: [authorize('audit:view')] }, async (req, reply) => {
     const { entity_type, entity_id } = req.query;
     let query = 'SELECT a.*, u.name as user_name FROM audit_log a LEFT JOIN users u ON a.user_id = u.id WHERE a.company_id = $1';
-    const params = [req.session.companyId];
+    const params = [req.user.companyId];
 
     if (entity_type) {
       params.push(entity_type);

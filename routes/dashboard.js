@@ -5,7 +5,7 @@ async function dashboardRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticate);
 
   fastify.get('/', async (req, reply) => {
-    const companyId = req.session.companyId;
+    const companyId = req.user.companyId;
 
     const totalTasks = await pool.query('SELECT count(*) FROM tasks WHERE company_id = $1', [companyId]);
     const overdueTasks = await pool.query('SELECT count(*) FROM tasks WHERE company_id = $1 AND due_date < CURRENT_DATE AND status != \'Done\'', [companyId]);
@@ -65,7 +65,7 @@ async function dashboardRoutes(fastify, options) {
   });
 
   fastify.get('/velocity', async (req, reply) => {
-    const companyId = req.session.companyId;
+    const companyId = req.user.companyId;
 
     // Group completed tasks by week for the last 12 weeks
     const result = await pool.query(`

@@ -96,20 +96,17 @@ async function authRoutes(fastify, options) {
       return reply.code(403).send({ error: 'Account not verified. Please check your inbox for the activation link.' });
     }
 
-    req.session.userId = user.id;
-    req.session.companyId = user.company_id;
-    req.session.userRole = user.role;
-    req.session.userName = user.name;
-
-    // Handle Remember Me
-    if (rememberMe) {
-      req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-    } else {
-      req.session.cookie.maxAge = 2 * 60 * 60 * 1000; // 2 hours (default)
-    }
+    const token = await reply.jwtSign({
+      userId: user.id,
+      companyId: user.company_id,
+      userRole: user.role,
+      userName: user.name
+    }, {
+      expiresIn: rememberMe ? '30d' : '2h'
+    });
 
     const { password_hash, reset_token, reset_token_expiry, ...userWithoutPass } = user;
-    return { user: userWithoutPass };
+    return { user: userWithoutPass, token };
   });
 
   // Forgot Password
@@ -224,64 +221,164 @@ async function authRoutes(fastify, options) {
   });
 
   // Me
-  fastify.get('/me', async (req, reply) => {
-    if (!req.session.userId) return reply.code(401).send({ error: 'Not authenticated' });
+  fastify.get('/me', { preHandler: authenticate }, async (req, reply) => {
     const { rows } = await pool.query(`
       SELECT u.id, u.company_id, u.name, u.email, u.role, u.avatar_url, u.theme_preference, c.name as company_name 
       FROM users u 
       LEFT JOIN companies c ON u.company_id = c.id 
       WHERE u.id = $1
-    `, [req.session.userId]);
+    `, [req.user.userId]);
     if (rows.length === 0) return reply.code(401).send({ error: 'User not found' });
     return { user: rows[0] };
   });
 
   // Logout
-  fastify.post('/logout', async (req, reply) => {
-    const userId = req.session.userId;
+  fastify.post('/logout', { preHandler: authenticate }, async (req, reply) => {
+    const userId = req.user.userId;
     
     // Clear push subscriptions for this user on logout
     if (userId) {
       await pool.query('DELETE FROM push_subscriptions WHERE user_id = $1', [userId]);
     }
 
-    await new Promise((resolve) => {
-      req.session.destroy((err) => {
-        if (err) console.error('Logout error:', err);
-        resolve();
-      });
-    });
-    reply.clearCookie('session'); // Explicitly clear cookie
     return { success: true };
   });
 
   // GET /users (Company members)
   fastify.get('/users', { preHandler: authenticate }, async (req, reply) => {
-    const { rows } = await pool.query('SELECT id, name, email, role, avatar_url FROM users WHERE company_id = $1', [req.session.companyId]);
+    const { rows } = await pool.query('SELECT id, name, email, role, avatar_url FROM users WHERE company_id = $1', [req.user.companyId]);
     return rows;
   });
 
   // DELETE /auth/users/:id
   fastify.delete('/users/:id', { preHandler: authenticate }, async (req, reply) => {
-    if (req.session.userRole !== 'Admin') {
+    if (req.user.userRole !== 'Admin') {
       return reply.code(403).send({ error: 'Only Administrators can remove team members.' });
     }
 
     const { id } = req.params;
-    if (id === req.session.userId) {
+    if (id === req.user.userId) {
       return reply.code(400).send({ error: 'You cannot remove yourself.' });
     }
 
-    const userRes = await pool.query('SELECT id, name, email, role FROM users WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+    const userRes = await pool.query('SELECT id, name, email, role FROM users WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
     if (userRes.rows.length === 0) return reply.code(404).send({ error: 'User not found' });
 
-    await pool.query('DELETE FROM users WHERE id = $1 AND company_id = $2', [id, req.session.companyId]);
+    await pool.query('DELETE FROM users WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);
 
     await pool.query(
       'INSERT INTO audit_log (company_id, user_id, entity_type, entity_id, action, changes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.session.companyId, req.session.userId, 'user', id, 'removed', JSON.stringify(userRes.rows[0])]
+      [req.user.companyId, req.user.userId, 'user', id, 'removed', JSON.stringify(userRes.rows[0])]
     );
 
+  });
+  // Google OAuth Callback
+  fastify.get('/login/google/callback', async (req, reply) => {
+    try {
+      const { token } = await fastify.googleOAuth2.getAccessTokenFromAuthorizationCodeFlow(req);
+      const { data: userInfo } = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${token.access_token}` }
+      });
+
+      let userRes = await pool.query('SELECT u.*, c.name as company_name FROM users u LEFT JOIN companies c ON u.company_id = c.id WHERE u.google_id = $1 OR u.email = $2', [userInfo.id, userInfo.email]);
+      let user = userRes.rows[0];
+
+      if (!user) {
+        // Create new user + company
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const companyRes = await client.query('INSERT INTO companies (name) VALUES ($1) RETURNING id', [`${userInfo.name}'s Workspace`]);
+          const companyId = companyRes.rows[0].id;
+          
+          const newUserRes = await client.query(
+            'INSERT INTO users (company_id, name, email, google_id, role, is_verified) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [companyId, userInfo.name, userInfo.email, userInfo.id, 'Admin', true]
+          );
+          user = newUserRes.rows[0];
+          await client.query('COMMIT');
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
+        }
+      } else if (!user.google_id) {
+        // Link existing email to Google ID
+        await pool.query('UPDATE users SET google_id = $1, is_verified = true WHERE id = $2', [userInfo.id, user.id]);
+      }
+
+      const jwtToken = await reply.jwtSign({
+        userId: user.id,
+        companyId: user.company_id,
+        userRole: user.role,
+        userName: user.name
+      }, { expiresIn: '30d' });
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      reply.redirect(`${frontendUrl}/auth-success?token=${jwtToken}`);
+    } catch (err) {
+      fastify.log.error(err);
+      reply.redirect(`${process.env.FRONTEND_URL}/login?error=social_auth_failed`);
+    }
+  });
+
+  // GitHub OAuth Callback
+  fastify.get('/login/github/callback', async (req, reply) => {
+    try {
+      const { token } = await fastify.githubOAuth2.getAccessTokenFromAuthorizationCodeFlow(req);
+      const { data: userInfo } = await axios.get('https://api.github.com/user', {
+        headers: { Authorization: `Bearer ${token.access_token}` }
+      });
+      
+      // GitHub might not return email in /user, fetch separately if needed
+      let email = userInfo.email;
+      if (!email) {
+        const { data: emails } = await axios.get('https://api.github.com/user/emails', {
+          headers: { Authorization: `Bearer ${token.access_token}` }
+        });
+        email = emails.find(e => e.primary && e.verified)?.email || emails[0]?.email;
+      }
+
+      let userRes = await pool.query('SELECT u.*, c.name as company_name FROM users u LEFT JOIN companies c ON u.company_id = c.id WHERE u.github_id = $1 OR u.email = $2', [userInfo.id.toString(), email]);
+      let user = userRes.rows[0];
+
+      if (!user) {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const companyRes = await client.query('INSERT INTO companies (name) VALUES ($1) RETURNING id', [`${userInfo.name || userInfo.login}'s Workspace`]);
+          const companyId = companyRes.rows[0].id;
+          
+          const newUserRes = await client.query(
+            'INSERT INTO users (company_id, name, email, github_id, role, is_verified) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [companyId, userInfo.name || userInfo.login, email, userInfo.id.toString(), 'Admin', true]
+          );
+          user = newUserRes.rows[0];
+          await client.query('COMMIT');
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
+        }
+      } else if (!user.github_id) {
+        await pool.query('UPDATE users SET github_id = $1, is_verified = true WHERE id = $2', [userInfo.id.toString(), user.id]);
+      }
+
+      const jwtToken = await reply.jwtSign({
+        userId: user.id,
+        companyId: user.company_id,
+        userRole: user.role,
+        userName: user.name
+      }, { expiresIn: '30d' });
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      reply.redirect(`${frontendUrl}/auth-success?token=${jwtToken}`);
+    } catch (err) {
+      fastify.log.error(err);
+      reply.redirect(`${process.env.FRONTEND_URL}/login?error=social_auth_failed`);
+    }
   });
 }
 

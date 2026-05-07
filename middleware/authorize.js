@@ -13,30 +13,39 @@ const permissions = {
   'project:create': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
   'project:update': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
   'project:delete': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
-  'project:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER, ROLES.STAKEHOLDER],
+  'project:view': ['*'], // Everyone in company can view
 
   // Tasks
   'task:create': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER],
   'task:update': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER],
   'task:delete': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
-  'task:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER, ROLES.STAKEHOLDER],
+  'task:view': ['*'], // Everyone in company can view
 
   // Meetings
   'meeting:create': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER],
   'meeting:update': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER],
   'meeting:delete': [ROLES.ADMIN],
-  'meeting:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER, ROLES.STAKEHOLDER],
+  'meeting:view': ['*'], // Everyone in company can view
 
-  // Admin Only
-  'user:invite': [ROLES.ADMIN],
-  'user:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER, ROLES.STAKEHOLDER],
-  'audit:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER, ROLES.STAKEHOLDER],
+  // Admin / User Management
+  'user:invite': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
+  'user:view': ['*'], // Everyone in company can view
+  'audit:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER],
   'role:manage': [ROLES.ADMIN]
 };
 
 const checkPermission = async (companyId, role, permission) => {
   try {
     const trimmedRole = role ? role.trim().toLowerCase() : '';
+    
+    // 0. Fallback to hardcoded system permissions (check '*' first)
+    if (permissions[permission]) {
+      const allowedRoles = permissions[permission].map(r => r.toLowerCase());
+      if (allowedRoles.includes('*') || allowedRoles.includes(trimmedRole)) {
+        return true;
+      }
+    }
+
     // 1. Check database for custom role permissions (case-insensitive)
     const { rows } = await pool.query(`
       SELECT rp.permission_key 
@@ -46,14 +55,6 @@ const checkPermission = async (companyId, role, permission) => {
     `, [companyId, trimmedRole, permission]);
 
     if (rows.length > 0) return true;
-
-    // 2. Fallback to hardcoded system permissions (case-insensitive)
-    if (permissions[permission]) {
-      const allowedRoles = permissions[permission].map(r => r.toLowerCase());
-      if (allowedRoles.includes(trimmedRole)) {
-        return true;
-      }
-    }
 
     return false;
   } catch (err) {

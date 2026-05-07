@@ -285,25 +285,16 @@ async function authRoutes(fastify, options) {
       let user = userRes.rows[0];
 
       if (!user) {
-        // Create new user + company
-        const client = await pool.connect();
-        try {
-          await client.query('BEGIN');
-          const companyRes = await client.query('INSERT INTO companies (name) VALUES ($1) RETURNING id', [`${userInfo.name}'s Workspace`]);
-          const companyId = companyRes.rows[0].id;
-          
-          const newUserRes = await client.query(
-            'INSERT INTO users (company_id, name, email, google_id, role, is_verified) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [companyId, userInfo.name, userInfo.email, userInfo.id, 'Admin', true]
-          );
-          user = newUserRes.rows[0];
-          await client.query('COMMIT');
-        } catch (err) {
-          await client.query('ROLLBACK');
-          throw err;
-        } finally {
-          client.release();
-        }
+        // Redirect to complete signup on frontend
+        const pendingToken = await reply.jwtSign({
+          email: userInfo.email,
+          name: userInfo.name,
+          googleId: userInfo.id,
+          type: 'pending_social_auth'
+        }, { expiresIn: '15m' });
+
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        return reply.redirect(`${frontendUrl}/complete-signup?token=${pendingToken}`);
       } else if (!user.google_id) {
         // Link existing email to Google ID
         await pool.query('UPDATE users SET google_id = $1, is_verified = true WHERE id = $2', [userInfo.id, user.id]);
@@ -345,24 +336,16 @@ async function authRoutes(fastify, options) {
       let user = userRes.rows[0];
 
       if (!user) {
-        const client = await pool.connect();
-        try {
-          await client.query('BEGIN');
-          const companyRes = await client.query('INSERT INTO companies (name) VALUES ($1) RETURNING id', [`${userInfo.name || userInfo.login}'s Workspace`]);
-          const companyId = companyRes.rows[0].id;
-          
-          const newUserRes = await client.query(
-            'INSERT INTO users (company_id, name, email, github_id, role, is_verified) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [companyId, userInfo.name || userInfo.login, email, userInfo.id.toString(), 'Admin', true]
-          );
-          user = newUserRes.rows[0];
-          await client.query('COMMIT');
-        } catch (err) {
-          await client.query('ROLLBACK');
-          throw err;
-        } finally {
-          client.release();
-        }
+        // Redirect to complete signup on frontend
+        const pendingToken = await reply.jwtSign({
+          email: email,
+          name: userInfo.name || userInfo.login,
+          githubId: userInfo.id.toString(),
+          type: 'pending_social_auth'
+        }, { expiresIn: '15m' });
+
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        return reply.redirect(`${frontendUrl}/complete-signup?token=${pendingToken}`);
       } else if (!user.github_id) {
         await pool.query('UPDATE users SET github_id = $1, is_verified = true WHERE id = $2', [userInfo.id.toString(), user.id]);
       }
@@ -379,6 +362,54 @@ async function authRoutes(fastify, options) {
     } catch (err) {
       fastify.log.error(err);
       reply.redirect(`${process.env.FRONTEND_URL}/login?error=social_auth_failed`);
+    }
+  });
+  // POST /auth/complete-social-signup
+  fastify.post('/complete-social-signup', async (req, reply) => {
+    const { token, companyName, name } = req.body;
+    
+    try {
+      const decoded = await fastify.jwt.verify(token);
+      if (decoded.type !== 'pending_social_auth') {
+        return reply.code(400).send({ error: 'Invalid token type' });
+      }
+
+      // Check if user already exists (just in case)
+      const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [decoded.email]);
+      if (existingUser.rows.length > 0) {
+        return reply.code(400).send({ error: 'User already exists' });
+      }
+
+      const client = await pool.connect();
+      let user;
+      try {
+        await client.query('BEGIN');
+        const companyRes = await client.query('INSERT INTO companies (name) VALUES ($1) RETURNING id', [companyName]);
+        const companyId = companyRes.rows[0].id;
+        
+        const newUserRes = await client.query(
+          'INSERT INTO users (company_id, name, email, google_id, github_id, role, is_verified) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+          [companyId, name || decoded.name, decoded.email, decoded.googleId || null, decoded.githubId || null, 'Admin', true]
+        );
+        user = newUserRes.rows[0];
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      const jwtToken = await reply.jwtSign({
+        userId: user.id,
+        companyId: user.company_id,
+        userRole: user.role,
+        userName: user.name
+      }, { expiresIn: '30d' });
+
+      return { token: jwtToken, user: { id: user.id, name: user.name, email: user.email, role: user.role, companyId: user.company_id } };
+    } catch (err) {
+      return reply.code(400).send({ error: 'Invalid or expired signup token' });
     }
   });
 }

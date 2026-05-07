@@ -37,16 +37,22 @@ const permissions = {
 const checkPermission = async (companyId, role, permission) => {
   try {
     const trimmedRole = role ? role.trim().toLowerCase() : '';
+    const config = permissions[permission];
     
-    // 0. Fallback to hardcoded system permissions (check '*' first)
-    if (permissions[permission]) {
-      const allowedRoles = permissions[permission].map(r => r.toLowerCase());
-      if (allowedRoles.includes('*') || allowedRoles.includes(trimmedRole)) {
+    // 0. Check for universal access '*'
+    if (config && config.includes('*')) {
+      return true;
+    }
+
+    // 1. Check hardcoded system permissions
+    if (config) {
+      const allowedRoles = config.map(r => r.toLowerCase());
+      if (allowedRoles.includes(trimmedRole)) {
         return true;
       }
     }
 
-    // 1. Check database for custom role permissions (case-insensitive)
+    // 2. Check database for custom role permissions
     const { rows } = await pool.query(`
       SELECT rp.permission_key 
       FROM custom_roles cr

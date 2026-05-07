@@ -5,6 +5,7 @@ const { sendMail } = require('../utils/mailer');
 const emailTemplates = require('../utils/emailTemplates');
 const axios = require('axios');
 const authenticate = require('../middleware/authenticate');
+const { authorize } = require('../middleware/authorize');
 
 async function sendVerificationEmail(req, email, name, token) {
   const origin = req.headers.origin || req.headers.referer || process.env.BASE_URL || 'https://agile.vsgrps.com';
@@ -252,10 +253,7 @@ async function authRoutes(fastify, options) {
   });
 
   // DELETE /auth/users/:id
-  fastify.delete('/users/:id', { preHandler: authenticate }, async (req, reply) => {
-    if (req.user.userRole !== 'Admin') {
-      return reply.code(403).send({ error: 'Only Administrators can remove team members.' });
-    }
+  fastify.delete('/users/:id', { preHandler: [authenticate, authorize('user:delete')] }, async (req, reply) => {
 
     const { id } = req.params;
     if (id === req.user.userId) {

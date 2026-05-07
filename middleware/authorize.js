@@ -29,9 +29,15 @@ const permissions = {
 
   // Admin / User Management
   'user:invite': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
+  'user:delete': [ROLES.ADMIN],
   'user:view': ['*'], // Everyone in company can view
   'audit:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER],
-  'role:manage': [ROLES.ADMIN]
+  'role:manage': [ROLES.ADMIN],
+  'system:broadcast': [ROLES.ADMIN],
+  'system:backup': [ROLES.ADMIN],
+  'task:complete': [ROLES.ADMIN], // Special verification for Done status
+  'file:delete': [ROLES.ADMIN],
+  'link:delete': [ROLES.ADMIN]
 };
 
 const checkPermission = async (companyId, role, permission) => {

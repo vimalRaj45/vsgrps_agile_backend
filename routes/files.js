@@ -1,5 +1,6 @@
 const pool = require('../db');
 const authenticate = require('../middleware/authenticate');
+const { authorize, checkPermission } = require('../middleware/authorize');
 const { r2Client, bucketName } = require('../utils/r2');
 const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
@@ -352,8 +353,9 @@ async function fileRoutes(fastify, options) {
       if (rows.length === 0) return reply.code(404).send({ error: 'File not found' });
       
       const file = rows[0];
-      if (file.uploaded_by !== req.user.userId && req.user.userRole !== 'Admin') {
-        return reply.code(403).send({ error: 'You can only delete files you uploaded.' });
+      const canDeleteAll = await checkPermission(req.user.companyId, req.user.userRole, 'file:delete');
+      if (file.uploaded_by !== req.user.userId && !canDeleteAll) {
+        return reply.code(403).send({ error: 'You can only delete files you uploaded or if you have administrative permissions.' });
       }
 
       const r2Key = `files/${req.user.companyId}/${file.id}/${file.filename}`;
@@ -392,8 +394,9 @@ async function fileRoutes(fastify, options) {
       if (rows.length === 0) return reply.code(404).send({ error: 'Link not found' });
       
       const link = rows[0];
-      if (link.added_by !== req.user.userId && req.user.userRole !== 'Admin') {
-        return reply.code(403).send({ error: 'You can only delete links you added.' });
+      const canDeleteAll = await checkPermission(req.user.companyId, req.user.userRole, 'link:delete');
+      if (link.added_by !== req.user.userId && !canDeleteAll) {
+        return reply.code(403).send({ error: 'You can only delete links you added or if you have administrative permissions.' });
       }
 
       await pool.query('DELETE FROM links WHERE id = $1 AND company_id = $2', [id, req.user.companyId]);

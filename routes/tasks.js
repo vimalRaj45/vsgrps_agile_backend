@@ -132,9 +132,12 @@ async function taskRoutes(fastify, options) {
       return reply.code(403).send({ error: 'Only Administrators, Product Owners, or Scrum Masters can modify core task details.' });
     }
 
-    // Workflow Restriction: Only Admins can mark tasks as 'Done'
-    if (updates.status === 'Done' && req.user.userRole !== ROLES.ADMIN) {
-      return reply.code(403).send({ error: 'Task completion (Done) must be verified by an Administrator.' });
+    // Workflow Restriction: Only roles with 'task:complete' can mark tasks as 'Done'
+    if (updates.status === 'Done') {
+      const canComplete = await checkPermission(req.user.companyId, req.user.userRole, 'task:complete');
+      if (!canComplete) {
+        return reply.code(403).send({ error: 'Task completion (Done) must be verified by an authorized role (e.g., Administrator).' });
+      }
     }
 
     // Verify assigned user for status updates
@@ -327,10 +330,7 @@ async function taskRoutes(fastify, options) {
   });
   
   // DELETE /tasks/:id
-  fastify.delete('/:id', async (req, reply) => {
-    if (req.user.userRole !== 'Admin') {
-      return reply.code(403).send({ error: 'Only Administrators can delete tasks.' });
-    }
+  fastify.delete('/:id', { preHandler: [authorize('task:delete')] }, async (req, reply) => {
     
     const { id } = req.params;
     

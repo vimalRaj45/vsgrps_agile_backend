@@ -40,9 +40,8 @@ async function backupRoutes(fastify, options) {
     yield `COMMIT;\n`;
   }
 
-  fastify.get('/sql', { preHandler: [authorize('audit:view')] }, async (req, reply) => {
+  fastify.get('/sql', { preHandler: [authorize('system:backup')] }, async (req, reply) => {
     const { companyId } = req.user;
-    if (req.user.userRole !== 'Admin') return reply.code(403).send({ error: 'Forbidden' });
 
     const queries = [
       { name: 'companies', query: 'SELECT * FROM companies WHERE id = $1', filter: [companyId] },

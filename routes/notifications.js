@@ -1,5 +1,6 @@
 const pool = require('../db');
 const authenticate = require('../middleware/authenticate');
+const { authorize } = require('../middleware/authorize');
 
 async function notificationRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticate);
@@ -47,11 +48,8 @@ async function notificationRoutes(fastify, options) {
   });
 
   // POST /notifications/broadcast-admin
-  fastify.post('/broadcast-admin', async (req, reply) => {
+  fastify.post('/broadcast-admin', { preHandler: [authorize('system:broadcast')] }, async (req, reply) => {
     try {
-      if (req.user.userRole !== 'Admin') {
-        return reply.code(403).send({ error: 'Only administrators can broadcast notifications' });
-      }
 
       const { message, link } = req.body;
       if (!message) return reply.code(400).send({ error: 'Missing message' });

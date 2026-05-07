@@ -2,7 +2,7 @@ const pool = require('../db');
 const { authorize } = require('../middleware/authorize');
 const authenticate = require('../middleware/authenticate');
 const { r2Client, bucketName } = require('../utils/r2');
-const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 async function userRoutes(fastify) {
   fastify.addHook('preHandler', async (req, reply) => {
@@ -46,6 +46,22 @@ async function userRoutes(fastify) {
       const data = await req.file();
       if (!data) return reply.code(400).send({ error: 'No file uploaded' });
 
+      // Fetch current avatar to delete it if it exists in R2
+      const userRes = await pool.query('SELECT avatar_url FROM users WHERE id = $1', [req.user.userId]);
+      const oldAvatar = userRes.rows[0]?.avatar_url;
+
+      if (oldAvatar && oldAvatar.startsWith('avatars/')) {
+        try {
+          await r2Client.send(new DeleteObjectCommand({
+            Bucket: bucketName,
+            Key: oldAvatar,
+          }));
+        } catch (delErr) {
+          console.warn('Failed to delete old avatar:', delErr);
+          // Continue anyway
+        }
+      }
+
       const fileContent = await data.toBuffer();
       const r2Key = `avatars/${req.user.userId}-${Date.now()}.png`;
 
@@ -59,7 +75,7 @@ async function userRoutes(fastify) {
       const avatarUrl = `${r2Key}`; // Store the key, proxy handles the rest
       await pool.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user.userId]);
 
-      return { success: true, avatarUrl: `/users/avatar/${req.user.userId}?t=${Date.now()}` };
+      return { success: true, avatarUrl: `/users/avatar/${req.user.userId}?v=${Date.now()}` };
     } catch (err) {
       console.error('Avatar upload error:', err);
       return reply.code(500).send({ error: 'Failed to upload avatar' });

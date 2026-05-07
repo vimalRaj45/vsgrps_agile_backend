@@ -1,9 +1,70 @@
 const pool = require('../db');
 const { authorize } = require('../middleware/authorize');
 const authenticate = require('../middleware/authenticate');
+const { r2Client, bucketName } = require('../utils/r2');
+const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 
 async function userRoutes(fastify) {
-  fastify.addHook('preHandler', authenticate);
+  fastify.addHook('preHandler', async (req, reply) => {
+    // Skip authenticate for public avatar route
+    if (req.url.startsWith('/users/avatar/') && req.method === 'GET') return;
+    return authenticate(req, reply);
+  });
+
+  // GET /users/avatar/:userId - Publicly accessible avatar proxy
+  fastify.get('/avatar/:userId', async (req, reply) => {
+    try {
+      const { userId } = req.params;
+      const { rows } = await pool.query('SELECT name, avatar_url FROM users WHERE id = $1', [userId]);
+      
+      if (rows.length === 0) return reply.code(404).send({ error: 'User not found' });
+      
+      const user = rows[0];
+      
+      if (!user.avatar_url || !user.avatar_url.startsWith('avatars/')) {
+        // Fallback to UI Avatars
+        return reply.redirect(`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff&bold=true`);
+      }
+
+      const response = await r2Client.send(new GetObjectCommand({
+        Bucket: bucketName,
+        Key: user.avatar_url,
+      }));
+
+      reply.header('Content-Type', response.ContentType || 'image/png');
+      reply.header('Cache-Control', 'public, max-age=3600');
+      return response.Body;
+    } catch (err) {
+      console.error('Avatar fetch error:', err);
+      return reply.redirect('https://ui-avatars.com/api/?name=User&background=6366f1&color=fff');
+    }
+  });
+
+  // POST /users/avatar - Upload your own avatar
+  fastify.post('/avatar', async (req, reply) => {
+    try {
+      const data = await req.file();
+      if (!data) return reply.code(400).send({ error: 'No file uploaded' });
+
+      const fileContent = await data.toBuffer();
+      const r2Key = `avatars/${req.user.userId}-${Date.now()}.png`;
+
+      await r2Client.send(new PutObjectCommand({
+        Bucket: bucketName,
+        Key: r2Key,
+        Body: fileContent,
+        ContentType: data.mimetype,
+      }));
+
+      const avatarUrl = `${r2Key}`; // Store the key, proxy handles the rest
+      await pool.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user.userId]);
+
+      return { success: true, avatarUrl: `/users/avatar/${req.user.userId}?t=${Date.now()}` };
+    } catch (err) {
+      console.error('Avatar upload error:', err);
+      return reply.code(500).send({ error: 'Failed to upload avatar' });
+    }
+  });
 
   // List all users in the same company
   fastify.get('/', { preHandler: [authorize('user:view')] }, async (req, reply) => {

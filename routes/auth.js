@@ -225,7 +225,8 @@ async function authRoutes(fastify, options) {
   // Me
   fastify.get('/me', { preHandler: authenticate }, async (req, reply) => {
     const { rows } = await pool.query(`
-      SELECT u.id, u.company_id, u.name, u.email, u.role, u.avatar_url, u.theme_preference, c.name as company_name 
+      SELECT u.id, u.company_id, u.name, u.email, u.role, u.avatar_url, u.theme_preference, c.name as company_name,
+             (SELECT email FROM users WHERE company_id = u.company_id AND role = 'Admin' ORDER BY created_at ASC LIMIT 1) as admin_email
       FROM users u 
       LEFT JOIN companies c ON u.company_id = c.id 
       WHERE u.id = $1

@@ -17,3 +17,5 @@ add-sharing-columns.js
 add-verification-columns.js
 truncate-db.js
 
+# Google Service Account
+google-credentials.json

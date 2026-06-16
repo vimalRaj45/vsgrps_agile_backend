@@ -2,6 +2,7 @@ const pool = require('../db');
 const authenticate = require('../middleware/authenticate');
 const { authorize } = require('../middleware/authorize');
 const { sendPushNotification } = require('../utils/push');
+const { createCalendarEventWithMeet } = require('../utils/calendar');
 
 async function meetingRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticate);
@@ -41,10 +42,36 @@ async function meetingRoutes(fastify, options) {
 
   // POST /meetings
   fastify.post('/', { preHandler: [authorize('meeting:create')] }, async (req, reply) => {
-    const { project_id, title, scheduled_at, agenda, attendees, meeting_link, outcome } = req.body;
+    let { project_id, title, scheduled_at, agenda, attendees, meeting_link, outcome } = req.body;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      
+      // Attempt to auto-generate a Google Meet link if attendees are provided and no link is manually provided
+      if (!meeting_link && attendees && attendees.length > 0) {
+        // Fetch attendee emails
+        const attendeesEmailsRes = await client.query(
+          'SELECT email FROM users WHERE id = ANY($1::int[])',
+          [attendees]
+        );
+        const attendeeEmails = attendeesEmailsRes.rows.map(r => r.email);
+        
+        // Also include the creator
+        const creatorRes = await client.query('SELECT email FROM users WHERE id = $1', [req.user.userId]);
+        if (creatorRes.rows.length > 0) attendeeEmails.push(creatorRes.rows[0].email);
+
+        const generatedMeetLink = await createCalendarEventWithMeet(
+          title, 
+          agenda || 'Discussing project updates.', 
+          scheduled_at, 
+          attendeeEmails
+        );
+        
+        if (generatedMeetLink) {
+          meeting_link = generatedMeetLink;
+        }
+      }
+
       const res = await client.query(
         'INSERT INTO meetings (company_id, project_id, title, scheduled_at, agenda, created_by, meeting_link, outcome) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
         [req.user.companyId, project_id, title, scheduled_at, agenda, req.user.userId, meeting_link, outcome]

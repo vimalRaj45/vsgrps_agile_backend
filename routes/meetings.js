@@ -43,6 +43,10 @@ async function meetingRoutes(fastify, options) {
   // POST /meetings
   fastify.post('/', { preHandler: [authorize('meeting:create')] }, async (req, reply) => {
     let { project_id, title, scheduled_at, agenda, attendees, meeting_link, outcome } = req.body;
+    if (project_id === '') project_id = null;
+    if (meeting_link === '') meeting_link = null;
+    if (agenda === '') agenda = null;
+    if (outcome === undefined) outcome = null;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -51,7 +55,7 @@ async function meetingRoutes(fastify, options) {
       if (!meeting_link && attendees && attendees.length > 0) {
         // Fetch attendee emails
         const attendeesEmailsRes = await client.query(
-          'SELECT email FROM users WHERE id = ANY($1::int[])',
+          'SELECT email FROM users WHERE id = ANY($1::uuid[])',
           [attendees]
         );
         const attendeeEmails = attendeesEmailsRes.rows.map(r => r.email);
@@ -69,6 +73,11 @@ async function meetingRoutes(fastify, options) {
         
         if (generatedMeetLink) {
           meeting_link = generatedMeetLink;
+        } else {
+          // Fallback to Jitsi Meet since standard Service Accounts are blocked from generating Google Meet links without Google Workspace
+          const { v4: uuidv4 } = require('uuid');
+          meeting_link = `https://meet.jit.si/Sprintora-${uuidv4().substring(0,8)}`;
+          console.log('⚠️ Google Meet generation failed, falling back to Jitsi Meet:', meeting_link);
         }
       }
 
@@ -106,6 +115,7 @@ async function meetingRoutes(fastify, options) {
       return meeting;
     } catch (err) {
       await client.query('ROLLBACK');
+      console.error('MEETING CREATION ERROR:', err);
       throw err;
     } finally {
       client.release();

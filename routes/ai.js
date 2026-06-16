@@ -92,6 +92,67 @@ async function aiRoutes(fastify, options) {
       return reply.code(500).send({ error: 'AI suggestion failed' });
     }
   });
+  fastify.post('/meeting-summary', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute'
+      }
+    }
+  }, async (req, reply) => {
+    const { agenda, notes } = req.body;
+
+    if (!notes || notes.length === 0) {
+      return reply.code(400).send({ error: 'No meeting notes provided to summarize' });
+    }
+
+    try {
+      const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert Agile Scrum Master. Given the meeting agenda and raw meeting notes (discussions, decisions, action items), you must write a highly professional, well-formatted Meeting Summary and a Key Outcomes bulleted list.
+            
+            Return ONLY a JSON object with EXACTLY two fields:
+            1. "summary" (string): A single paragraph summarizing the main discussion points.
+            2. "outcome" (string): A bulleted list (using dash '-' or numbers) of the final decisions and action items.
+
+            Example Output:
+            {
+              "summary": "The team met to discuss the upcoming v2 release. We aligned on the authentication flow, resolving the remaining OAuth concerns.",
+              "outcome": "- Decided to use Google Workspace for OAuth.\n- John will implement the login flow by Tuesday."
+            }`
+          },
+          {
+            role: 'user',
+            content: `Agenda: ${agenda || 'None'}\n\nMeeting Notes:\n${JSON.stringify(notes)}`
+          }
+        ],
+        temperature: 0.2,
+        response_format: { type: 'json_object' }
+      }, {
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const content = response.data.choices[0].messages?.content || response.data.choices[0].message.content;
+      
+      let result;
+      try {
+          result = JSON.parse(content);
+      } catch (e) {
+          result = { summary: content, outcome: "" };
+      }
+
+      return result;
+    } catch (err) {
+      console.error('Groq AI Error:', err.response?.data || err.message);
+      return reply.code(500).send({ error: 'AI summary failed' });
+    }
+  });
 }
 
 module.exports = aiRoutes;

@@ -48,7 +48,8 @@ async function createCalendarEventWithMeet(title, description, startTime, attend
     end: {
       dateTime: endTime.toISOString(),
     },
-    attendees: attendeeEmails.map(email => ({ email })),
+    // Removed 'attendees' because standard Service Accounts cannot invite external users without Domain-Wide Delegation.
+    // The Google Meet link will still be generated and saved in Sprintora.
     conferenceData: {
       createRequest: {
         requestId: uuidv4(),
@@ -64,7 +65,6 @@ async function createCalendarEventWithMeet(title, description, startTime, attend
       calendarId: 'primary',
       resource: event,
       conferenceDataVersion: 1, // Required to generate the Meet link
-      sendUpdates: 'all', // Send email notifications to attendees
     });
 
     console.log('✅ Google Calendar Event Created:', response.data.htmlLink);

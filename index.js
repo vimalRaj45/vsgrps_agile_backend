@@ -20,6 +20,12 @@ const allowedOrigins = [
   'http://127.0.0.1:5173'
 ].filter(Boolean);
 
+// Logging hook to catch silent 500 errors
+fastify.addHook('onError', (request, reply, error, done) => {
+  console.error("FASTIFY 500 ERROR CAUGHT:", error);
+  done();
+});
+
 fastify.register(require('@fastify/cors'), {
   origin: allowedOrigins,
   credentials: true,

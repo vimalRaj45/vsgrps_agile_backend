@@ -88,7 +88,7 @@ async function fileRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticate);
 
   // POST /files/upload
-  fastify.post('/upload', async (req, reply) => {
+  fastify.post('/upload', { preHandler: [authorize('file:create')] }, async (req, reply) => {
     try {
       const data = await req.file();
       if (!data) return reply.code(400).send({ error: 'No file uploaded' });
@@ -251,7 +251,7 @@ async function fileRoutes(fastify, options) {
   });
 
   // POST /links
-  fastify.post('/links', async (req, reply) => {
+  fastify.post('/links', { preHandler: [authorize('link:create')] }, async (req, reply) => {
     try {
       const { url, project_id, task_id, meeting_id, is_private, shared_with } = req.body;
       let title = url;

@@ -8,57 +8,31 @@ const ROLES = {
   STAKEHOLDER: 'Stakeholder'
 };
 
-const permissions = {
-  // Projects
-  'project:create': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
-  'project:update': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
-  'project:delete': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
-  'project:view': ['*'], // Everyone in company can view
-
-  // Tasks
-  'task:create': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER],
-  'task:update': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER, ROLES.DEVELOPER],
-  'task:delete': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
-  'task:view': ['*'], // Everyone in company can view
-
-  // Meetings
-  'meeting:create': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER],
-  'meeting:update': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER],
-  'meeting:delete': [ROLES.ADMIN],
-  'meeting:view': ['*'], // Everyone in company can view
-
-  // Admin / User Management
-  'user:invite': [ROLES.ADMIN, ROLES.PRODUCT_OWNER],
-  'user:delete': [ROLES.ADMIN],
-  'user:view': ['*'], // Everyone in company can view
-  'audit:view': [ROLES.ADMIN, ROLES.PRODUCT_OWNER, ROLES.SCRUM_MASTER],
-  'role:manage': [ROLES.ADMIN],
-  'system:broadcast': [ROLES.ADMIN],
-  'system:backup': [ROLES.ADMIN],
-  'task:complete': [ROLES.ADMIN], // Special verification for Done status
-  'file:delete': [ROLES.ADMIN],
-  'link:delete': [ROLES.ADMIN]
-};
+const AVAILABLE_PERMISSIONS = [
+  'dashboard:view', 'dashboard:create', 'dashboard:update', 'dashboard:delete',
+  'project:view', 'project:create', 'project:update', 'project:delete',
+  'task:view', 'task:create', 'task:update', 'task:delete', 'task:complete',
+  'meeting:view', 'meeting:create', 'meeting:update', 'meeting:delete',
+  'file:view', 'file:create', 'file:update', 'file:delete',
+  'report:view', 'report:create', 'report:update', 'report:delete',
+  'user:view', 'user:create', 'user:update', 'user:delete', 'user:invite',
+  'audit:view', 'audit:create', 'audit:update', 'audit:delete',
+  'role:view', 'role:create', 'role:update', 'role:delete', 'role:manage',
+  'settings:view', 'settings:create', 'settings:update', 'settings:delete', 'settings:manage',
+  'system:view', 'system:create', 'system:update', 'system:delete', 'system:broadcast', 'system:backup',
+  'link:view', 'link:create', 'link:update', 'link:delete'
+];
 
 const checkPermission = async (companyId, role, permission) => {
   try {
     const trimmedRole = role ? role.trim().toLowerCase() : '';
-    const config = permissions[permission];
     
-    // 0. Check for universal access '*'
-    if (config && config.includes('*')) {
+    // Admin always has full access
+    if (trimmedRole === 'admin') {
       return true;
     }
 
-    // 1. Check hardcoded system permissions
-    if (config) {
-      const allowedRoles = config.map(r => r.toLowerCase());
-      if (allowedRoles.includes(trimmedRole)) {
-        return true;
-      }
-    }
-
-    // 2. Check database for custom role permissions
+    // Check database for role permissions
     const { rows } = await pool.query(`
       SELECT rp.permission_key 
       FROM custom_roles cr
@@ -66,9 +40,7 @@ const checkPermission = async (companyId, role, permission) => {
       WHERE cr.company_id = $1 AND LOWER(cr.name) = $2 AND rp.permission_key = $3
     `, [companyId, trimmedRole, permission]);
 
-    if (rows.length > 0) return true;
-
-    return false;
+    return rows.length > 0;
   } catch (err) {
     console.error('Permission check error:', err);
     return false;
@@ -91,43 +63,4 @@ const authorize = (permission) => {
   };
 };
 
-const getUserPermissions = async (companyId, role) => {
-  try {
-    const userPermissions = new Set();
-    const trimmedRole = role ? role.trim().toLowerCase() : '';
-
-    // 1. Collect permissions that are allowed for everyone ('*') or for this specific system role
-    for (const [perm, allowedRoles] of Object.entries(permissions)) {
-      if (allowedRoles.includes('*')) {
-        userPermissions.add(perm);
-      } else {
-        const lowerAllowed = allowedRoles.map(r => r.toLowerCase());
-        if (lowerAllowed.includes(trimmedRole)) {
-          userPermissions.add(perm);
-        }
-      }
-    }
-
-    // 2. Fetch custom role permissions from DB
-    if (companyId) {
-      const { rows } = await pool.query(`
-        SELECT rp.permission_key 
-        FROM custom_roles cr
-        JOIN role_permissions rp ON cr.id = rp.role_id
-        WHERE cr.company_id = $1 AND LOWER(cr.name) = $2
-      `, [companyId, trimmedRole]);
-
-      for (const row of rows) {
-        userPermissions.add(row.permission_key);
-      }
-    }
-
-    return Array.from(userPermissions);
-  } catch (err) {
-    console.error('Error fetching user permissions:', err);
-    return [];
-  }
-};
-
-module.exports = { ROLES, authorize, checkPermission, getUserPermissions, AVAILABLE_PERMISSIONS: Object.keys(permissions) };
-
+module.exports = { ROLES, authorize, checkPermission, AVAILABLE_PERMISSIONS };

@@ -165,6 +165,7 @@ async function userRoutes(fastify) {
 
   // Get all available permissions
   fastify.get('/permissions', { preHandler: [authorize('role:manage')] }, async (req, reply) => {
+    reply.header('Cache-Control', 'no-store, max-age=0');
     const { AVAILABLE_PERMISSIONS } = require('../middleware/authorize');
     return AVAILABLE_PERMISSIONS;
   });
@@ -211,10 +212,9 @@ async function userRoutes(fastify) {
     const { description, permissions } = req.body;
     const { companyId } = req.user;
 
-    // Check if role belongs to the same company and is not system
+    // Check if role belongs to the same company
     const check = await pool.query('SELECT is_system FROM custom_roles WHERE id = $1 AND company_id = $2', [id, companyId]);
     if (check.rows.length === 0) return reply.code(404).send({ error: 'Role not found' });
-    if (check.rows[0].is_system) return reply.code(403).send({ error: 'Cannot modify system roles' });
 
     const client = await pool.connect();
     try {

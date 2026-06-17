@@ -5,7 +5,8 @@ const { sendMail } = require('../utils/mailer');
 const emailTemplates = require('../utils/emailTemplates');
 const axios = require('axios');
 const authenticate = require('../middleware/authenticate');
-const { authorize, getUserPermissions } = require('../middleware/authorize');
+const { authorize } = require('../middleware/authorize');
+const { seedStandardRoles, getUserPermissions } = require('../utils/rbac');
 
 async function sendVerificationEmail(req, email, name, token) {
   const origin = req.headers.origin || req.headers.referer || process.env.BASE_URL || 'https://agile.vsgrps.com';
@@ -107,9 +108,11 @@ async function authRoutes(fastify, options) {
       expiresIn: rememberMe ? '30d' : '2h'
     });
 
+    const permissions = await getUserPermissions(pool, user.company_id, user.role);
     const { password_hash, reset_token, reset_token_expiry, ...userWithoutPass } = user;
-    const userPermissions = await getUserPermissions(user.company_id, user.role);
-    return { user: { ...userWithoutPass, permissions: userPermissions }, token };
+    userWithoutPass.permissions = permissions;
+
+    return { user: userWithoutPass, token };
   });
 
   // Forgot Password
@@ -186,6 +189,8 @@ async function authRoutes(fastify, options) {
       const hash = await bcrypt.hash(password, 10);
       const token = crypto.randomBytes(32).toString('hex');
 
+      await seedStandardRoles(client, companyId);
+
       const userRes = await client.query(
         'INSERT INTO users (company_id, name, email, password_hash, role, verification_token, is_verified) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, company_id, name, email, role',
         [companyId, name, email, hash, 'Admin', token, false]
@@ -233,9 +238,11 @@ async function authRoutes(fastify, options) {
       WHERE u.id = $1
     `, [req.user.userId]);
     if (rows.length === 0) return reply.code(401).send({ error: 'User not found' });
+    
     const user = rows[0];
-    const userPermissions = await getUserPermissions(user.company_id, user.role);
-    return { user: { ...user, permissions: userPermissions } };
+    user.permissions = await getUserPermissions(pool, user.company_id, user.role);
+
+    return { user };
   });
 
   // Logout
@@ -389,6 +396,8 @@ async function authRoutes(fastify, options) {
         const companyRes = await client.query('INSERT INTO companies (name) VALUES ($1) RETURNING id', [companyName]);
         const companyId = companyRes.rows[0].id;
         
+        await seedStandardRoles(client, companyId);
+
         const newUserRes = await client.query(
           'INSERT INTO users (company_id, name, email, google_id, github_id, role, is_verified) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
           [companyId, name || decoded.name, decoded.email, decoded.googleId || null, decoded.githubId || null, 'Admin', true]
@@ -409,8 +418,8 @@ async function authRoutes(fastify, options) {
         userName: user.name
       }, { expiresIn: '30d' });
 
-      const userPermissions = await getUserPermissions(user.company_id, user.role);
-      return { token: jwtToken, user: { id: user.id, name: user.name, email: user.email, role: user.role, companyId: user.company_id, permissions: userPermissions } };
+      const permissions = await getUserPermissions(pool, user.company_id, user.role);
+      return { token: jwtToken, user: { id: user.id, name: user.name, email: user.email, role: user.role, companyId: user.company_id, permissions } };
     } catch (err) {
       return reply.code(400).send({ error: 'Invalid or expired signup token' });
     }

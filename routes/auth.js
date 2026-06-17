@@ -5,7 +5,7 @@ const { sendMail } = require('../utils/mailer');
 const emailTemplates = require('../utils/emailTemplates');
 const axios = require('axios');
 const authenticate = require('../middleware/authenticate');
-const { authorize } = require('../middleware/authorize');
+const { authorize, getUserPermissions } = require('../middleware/authorize');
 
 async function sendVerificationEmail(req, email, name, token) {
   const origin = req.headers.origin || req.headers.referer || process.env.BASE_URL || 'https://agile.vsgrps.com';
@@ -108,7 +108,8 @@ async function authRoutes(fastify, options) {
     });
 
     const { password_hash, reset_token, reset_token_expiry, ...userWithoutPass } = user;
-    return { user: userWithoutPass, token };
+    const userPermissions = await getUserPermissions(user.company_id, user.role);
+    return { user: { ...userWithoutPass, permissions: userPermissions }, token };
   });
 
   // Forgot Password
@@ -232,7 +233,9 @@ async function authRoutes(fastify, options) {
       WHERE u.id = $1
     `, [req.user.userId]);
     if (rows.length === 0) return reply.code(401).send({ error: 'User not found' });
-    return { user: rows[0] };
+    const user = rows[0];
+    const userPermissions = await getUserPermissions(user.company_id, user.role);
+    return { user: { ...user, permissions: userPermissions } };
   });
 
   // Logout
@@ -406,7 +409,8 @@ async function authRoutes(fastify, options) {
         userName: user.name
       }, { expiresIn: '30d' });
 
-      return { token: jwtToken, user: { id: user.id, name: user.name, email: user.email, role: user.role, companyId: user.company_id } };
+      const userPermissions = await getUserPermissions(user.company_id, user.role);
+      return { token: jwtToken, user: { id: user.id, name: user.name, email: user.email, role: user.role, companyId: user.company_id, permissions: userPermissions } };
     } catch (err) {
       return reply.code(400).send({ error: 'Invalid or expired signup token' });
     }

@@ -91,4 +91,43 @@ const authorize = (permission) => {
   };
 };
 
-module.exports = { ROLES, authorize, checkPermission, AVAILABLE_PERMISSIONS: Object.keys(permissions) };
+const getUserPermissions = async (companyId, role) => {
+  try {
+    const userPermissions = new Set();
+    const trimmedRole = role ? role.trim().toLowerCase() : '';
+
+    // 1. Collect permissions that are allowed for everyone ('*') or for this specific system role
+    for (const [perm, allowedRoles] of Object.entries(permissions)) {
+      if (allowedRoles.includes('*')) {
+        userPermissions.add(perm);
+      } else {
+        const lowerAllowed = allowedRoles.map(r => r.toLowerCase());
+        if (lowerAllowed.includes(trimmedRole)) {
+          userPermissions.add(perm);
+        }
+      }
+    }
+
+    // 2. Fetch custom role permissions from DB
+    if (companyId) {
+      const { rows } = await pool.query(`
+        SELECT rp.permission_key 
+        FROM custom_roles cr
+        JOIN role_permissions rp ON cr.id = rp.role_id
+        WHERE cr.company_id = $1 AND LOWER(cr.name) = $2
+      `, [companyId, trimmedRole]);
+
+      for (const row of rows) {
+        userPermissions.add(row.permission_key);
+      }
+    }
+
+    return Array.from(userPermissions);
+  } catch (err) {
+    console.error('Error fetching user permissions:', err);
+    return [];
+  }
+};
+
+module.exports = { ROLES, authorize, checkPermission, getUserPermissions, AVAILABLE_PERMISSIONS: Object.keys(permissions) };
+

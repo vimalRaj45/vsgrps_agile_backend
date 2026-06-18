@@ -134,4 +134,24 @@ fastify.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
     process.exit(1);
   }
   console.log(`Server listening on ${address}`);
+
+  // --- Audit Log Auto-Cleanup (keep only last 5 days) ---
+  const pool = require('./db');
+
+  const cleanupAuditLogs = async () => {
+    try {
+      const result = await pool.query(
+        `DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL '5 days'`
+      );
+      if (result.rowCount > 0) {
+        console.log(`[Audit Cleanup] Deleted ${result.rowCount} audit log entries older than 5 days.`);
+      }
+    } catch (err) {
+      console.error('[Audit Cleanup] Error during cleanup:', err.message);
+    }
+  };
+
+  // Run immediately on startup, then every 24 hours
+  cleanupAuditLogs();
+  setInterval(cleanupAuditLogs, 24 * 60 * 60 * 1000);
 });

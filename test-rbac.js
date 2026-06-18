@@ -1,6 +1,7 @@
 require('dotenv').config();
 const pool = require('./db');
 const { checkPermission, AVAILABLE_PERMISSIONS, ROLES } = require('./middleware/authorize');
+const { seedStandardRoles } = require('./utils/rbac');
 
 async function testRBAC() {
   console.log('--- Starting RBAC Tests ---');
@@ -12,6 +13,10 @@ async function testRBAC() {
     const companyRes = await client.query('INSERT INTO companies (name) VALUES ($1) RETURNING id', ['RBAC Test Company']);
     companyId = companyRes.rows[0].id;
     console.log(`✅ Created test company (ID: ${companyId})`);
+    
+    // Seed standard roles for the test company
+    await seedStandardRoles(client, companyId);
+    console.log(`✅ Seeded standard roles for company`);
 
     // 2. Test Standard Roles (Hardcoded)
     console.log('\n--- Testing Standard Roles ---');
@@ -44,7 +49,7 @@ async function testRBAC() {
     console.log(`✅ Created custom role "Project Manager" (ID: ${roleId})`);
 
     // Assign Permissions to Custom Role
-    const permsToAssign = ['project:create', 'project:update', 'task:create'];
+    const permsToAssign = ['project:*', 'task:create'];
     for (const perm of permsToAssign) {
       await client.query(
         'INSERT INTO role_permissions (role_id, permission_key) VALUES ($1, $2)',

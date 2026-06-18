@@ -75,8 +75,9 @@ async function getUserPermissions(pool, companyId, roleName) {
   if (!roleName) return [];
   const trimmedRole = roleName.trim().toLowerCase();
   
+  const { AVAILABLE_PERMISSIONS } = require('../middleware/authorize');
+
   if (trimmedRole === 'admin') {
-    const { AVAILABLE_PERMISSIONS } = require('../middleware/authorize');
     return AVAILABLE_PERMISSIONS;
   }
 
@@ -87,7 +88,25 @@ async function getUserPermissions(pool, companyId, roleName) {
     WHERE cr.company_id = $1 AND LOWER(cr.name) = $2
   `, [companyId, trimmedRole]);
 
-  return rows.map(r => r.permission_key);
+  const rawPermissions = rows.map(r => r.permission_key);
+  const resolvedPermissions = new Set();
+
+  for (const perm of rawPermissions) {
+    if (perm === '*') {
+      AVAILABLE_PERMISSIONS.forEach(p => resolvedPermissions.add(p));
+    } else if (perm.endsWith(':*')) {
+      const prefix = perm.slice(0, -1); // 'project:'
+      AVAILABLE_PERMISSIONS.forEach(p => {
+        if (p.startsWith(prefix)) {
+          resolvedPermissions.add(p);
+        }
+      });
+    } else {
+      resolvedPermissions.add(perm);
+    }
+  }
+
+  return Array.from(resolvedPermissions);
 }
 
 module.exports = {

@@ -1,6 +1,6 @@
 const pool = require('../db');
 const authenticate = require('../middleware/authenticate');
-const { authorize, ROLES } = require('../middleware/authorize');
+const { authorize, ROLES, checkPermission } = require('../middleware/authorize');
 
 async function taskRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticate);

@@ -37,10 +37,24 @@ const checkPermission = async (companyId, role, permission) => {
       SELECT rp.permission_key 
       FROM custom_roles cr
       JOIN role_permissions rp ON cr.id = rp.role_id
-      WHERE cr.company_id = $1 AND LOWER(cr.name) = $2 AND rp.permission_key = $3
-    `, [companyId, trimmedRole, permission]);
+      WHERE cr.company_id = $1 AND LOWER(cr.name) = $2
+    `, [companyId, trimmedRole]);
 
-    return rows.length > 0;
+    const userPermissions = rows.map(r => r.permission_key);
+    
+    for (const userPerm of userPermissions) {
+      if (userPerm === '*' || userPerm === permission) {
+        return true;
+      }
+      if (userPerm.endsWith(':*')) {
+        const prefix = userPerm.slice(0, -1); // e.g. 'project:'
+        if (permission.startsWith(prefix)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   } catch (err) {
     console.error('Permission check error:', err);
     return false;

@@ -7,6 +7,13 @@ async function auditRoutes(fastify, options) {
 
   // GET /audit
   fastify.get('/', { preHandler: [authorize('audit:view')] }, async (req, reply) => {
+    // Auto delete logs older than 5 days
+    try {
+      await pool.query("DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL '5 days'");
+    } catch (err) {
+      console.error('Error cleaning up old audit logs in GET /audit:', err);
+    }
+
     const { entity_type, entity_id } = req.query;
     let query = 'SELECT a.*, u.name as user_name FROM audit_log a LEFT JOIN users u ON a.user_id = u.id WHERE a.company_id = $1';
     const params = [req.user.companyId];
